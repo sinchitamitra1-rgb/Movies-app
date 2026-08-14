@@ -629,27 +629,22 @@ function switchEditMode(mode){
   }
 }
 function saveAllQuotas(){
-  const mm=Number(document.getElementById('editMovieMonthQuota').value);
-  const my=Number(document.getElementById('editMovieYearQuota').value);
-  const tm=Number(document.getElementById('editTvMonthQuota').value);
-  const ty=Number(document.getElementById('editTvYearQuota').value);
-  const mmc=Number(document.getElementById('editMovieMonthCount').value);
-  const myc=Number(document.getElementById('editMovieYearCount').value);
-  const tmc=Number(document.getElementById('editTvMonthCount').value);
-  const tyc=Number(document.getElementById('editTvYearCount').value);
-
+  const mm=Number($('editMovieMonthQuota').value);
+  const my=Number($('editMovieYearQuota').value);
+  const tm=Number($('editTvMonthQuota').value);
+  const ty=Number($('editTvYearQuota').value);
+  const mmc=Math.max(0,Number($('editMovieMonthCount').value)||0);
+  const myc=Math.max(0,Number($('editMovieYearCount').value)||0);
+  const tmc=Math.max(0,Number($('editTvMonthCount').value)||0);
+  const tyc=Math.max(0,Number($('editTvYearCount').value)||0);
   if([mm,my,tm,ty].some(v=>!Number.isFinite(v)||v<1)){
-    toast('Quota targets must be at least 1');return;
+    toast('Quota targets must be at least 1'); return;
   }
-  if([mmc,myc,tmc,tyc].some(v=>!Number.isFinite(v)||v<0)){
-    toast('Watched counts cannot be negative');return;
-  }
-
-  goals.movieMonth=mm;goals.movieYear=my;goals.tvMonth=tm;goals.tvYear=ty;
-  counts.movieMonth=mmc;counts.movieYear=myc;
-  counts.tvMonth=tmc;counts.tvYear=tyc;
-
-  save();renderGoals();closeEditor();toast('🎯 Quotas and watched counts updated');
+  goals.movieMonth=mm; goals.movieYear=my; goals.tvMonth=tm; goals.tvYear=ty;
+  counts.movieMonth=mmc; counts.movieYear=myc;
+  counts.tvMonth=tmc; counts.tvYear=tyc;
+  save(); renderGoals(); closeEditor();
+  toast('✓ Quotas and watched counts updated');
 }
 function addManualWatched(){
   const name=$('manualWatchedName').value.trim();
@@ -835,7 +830,7 @@ function shelf(type,genre,i){
  if(!arr.length)arr=data[type].slice(i%data[type].length).concat(data[type]).slice(0,6);
  return `<div class="shelf"><div class="shelf-head"><h3>${genre}</h3><button class="refresh" onclick="refreshShelf('${type}','${genre}')">↻ Refresh</button></div><div class="dvd-row">${arr.map((x,j)=>`<button class="dvd" style="background:${colors[j%colors.length]}" onclick='openCase(${JSON.stringify({type,title:x[0],year:x[1],genre:x[2],creator:x[3],summary:x[4]})})'><b>${x[0]}</b><small>${x[1]}</small></button>`).join('')}</div></div>`;
 }
-async async function refreshShelf(type,genre){
+async function refreshShelf(type,genre){
  try{
   const arr=await getLiveShelf(type,genre);
   const target=[...document.querySelectorAll('.shelf')].find(s=>s.querySelector('h3')?.textContent===genre);
