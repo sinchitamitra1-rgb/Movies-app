@@ -412,16 +412,16 @@ body{color:#f4ede3}
       <div class="quota-box">
         <div class="quota-title">✓ Watched so far</div>
         <label>Movies — this month
-          <input id="editMovieMonthCount" type="number" min="0" placeholder="0">
+          <input id="editMovieMonthCount" type="number" min="0" placeholder="0" value="0">
         </label>
         <label>Movies — this year
-          <input id="editMovieYearCount" type="number" min="0" placeholder="0">
+          <input id="editMovieYearCount" type="number" min="0" placeholder="0" value="0">
         </label>
         <label>TV series — this month
-          <input id="editTvMonthCount" type="number" min="0" placeholder="0">
+          <input id="editTvMonthCount" type="number" min="0" placeholder="0" value="0">
         </label>
         <label>TV series — this year
-          <input id="editTvYearCount" type="number" min="0" placeholder="0">
+          <input id="editTvYearCount" type="number" min="0" placeholder="0" value="0">
         </label>
       </div>
       <button class="save-edit" onclick="saveAllQuotas()">Save all quotas</button>
@@ -490,7 +490,16 @@ let want=JSON.parse(localStorage.getItem('reelWant')||'[]');
 let watched=JSON.parse(localStorage.getItem('reelWatched')||'[]');
 let settings=JSON.parse(localStorage.getItem('reelSettings')||'{"name":"Watcher","child":false,"font":"modern","theme":"system"}');
 let goals=JSON.parse(localStorage.getItem('reelGoals')||'{"movieMonth":5,"movieYear":50,"tvMonth":30,"tvYear":300}');
-let counts=JSON.parse(localStorage.getItem('reelCounts')||'{"movieMonth":3,"movieYear":18,"tvMonth":14,"tvYear":126}');
+let counts=JSON.parse(localStorage.getItem('reelCounts')||'{"movieMonth":0,"movieYear":0,"tvMonth":0,"tvYear":0}');
+if(!localStorage.getItem('reelV31Zeroed')){
+  counts.movieMonth=0;
+  counts.movieYear=0;
+  counts.tvMonth=0;
+  counts.tvYear=0;
+  localStorage.setItem('reelCounts',JSON.stringify(counts));
+  localStorage.setItem('reelV31Zeroed','1');
+}
+
 let movieProgress=Number(localStorage.getItem('reelMovieProgress')||52);
 let tvSeason=Number(localStorage.getItem('reelTvSeason')||3);
 let tvEpisode=Number(localStorage.getItem('reelTvEpisode')||1);
