@@ -529,82 +529,67 @@ if(!localStorage.getItem('reelV14Initialized')){
 }
 
 
-/* REEL V42 — persistent current-home state */
-const REEL_STATE_KEY='reelHomeStateV42';
-
-function persistReel(){
+/* REEL V44 — durable Home state */
+const REEL_HOME_KEY='reelHomeStateV44';
+function persistHome(){
   try{
     const state={
-      movie:{
-        title:els.movieTitle?.textContent||'',
-        meta:els.movieMeta?.textContent||'',
-        progress:Number(movieProgress)||0,
-        poster:els.moviePoster?.innerHTML||''
-      },
-      tv:{
-        title:els.tvTitle?.textContent||'',
-        meta:els.tvMeta?.textContent||'',
-        season:Number(tvSeason)||1,
-        episode:Number(tvEpisode)||1,
-        totalEpisodes:Number(tvTotalEpisodes)||1,
-        completedEpisodes:Number(tvCompletedEpisodes)||0,
-        poster:els.tvPoster?.innerHTML||''
-      },
-      want:Array.isArray(want)?want:[],
-      watched:Array.isArray(watched)?watched:[],
-      counts:{...counts},
-      goals:{...goals},
-      settings:{...settings}
+      movie:{title:els.movieTitle.textContent,meta:els.movieMeta.textContent,poster:els.moviePoster?.innerHTML||'',progress:movieProgress},
+      tv:{title:els.tvTitle.textContent,meta:els.tvMeta.textContent,poster:els.tvPoster?.innerHTML||'',season:tvSeason,episode:tvEpisode,totalEpisodes:tvTotalEpisodes,completedEpisodes:tvCompletedEpisodes},
+      savedAt:Date.now()
     };
-    localStorage.setItem(REEL_STATE_KEY,JSON.stringify(state));
-  }catch(e){
-    console.warn('Reel could not save state',e);
-  }
+    localStorage.setItem(REEL_HOME_KEY,JSON.stringify(state));
+    // Dedicated keys make the save independently recoverable even if a future
+    // version changes the shape of the combined state object.
+    localStorage.setItem('reelHomeMovieTitle',state.movie.title);
+    localStorage.setItem('reelHomeMovieMeta',state.movie.meta);
+    localStorage.setItem('reelHomeMoviePoster',state.movie.poster);
+    localStorage.setItem('reelHomeMovieProgress',String(state.movie.progress));
+    localStorage.setItem('reelHomeTvTitle',state.tv.title);
+    localStorage.setItem('reelHomeTvMeta',state.tv.meta);
+    localStorage.setItem('reelHomeTvPoster',state.tv.poster);
+    localStorage.setItem('reelHomeTvSeason',String(state.tv.season));
+    localStorage.setItem('reelHomeTvEpisode',String(state.tv.episode));
+    localStorage.setItem('reelHomeTvTotalEpisodes',String(state.tv.totalEpisodes));
+    localStorage.setItem('reelHomeTvCompletedEpisodes',String(state.tv.completedEpisodes));
+  }catch(e){console.warn('Could not persist Reel Home',e);}
 }
-
-function restoreReel(){
+function restoreHome(){
   try{
-    const raw=localStorage.getItem(REEL_STATE_KEY);
-    if(!raw)return;
-    const s=JSON.parse(raw);
+    const raw=localStorage.getItem(REEL_HOME_KEY);
+    const s=raw?JSON.parse(raw):null;
+    const movieTitle=s?.movie?.title||localStorage.getItem('reelHomeMovieTitle');
+    const movieMeta=s?.movie?.meta||localStorage.getItem('reelHomeMovieMeta');
+    const moviePoster=s?.movie?.poster||localStorage.getItem('reelHomeMoviePoster');
+    const movieProg=s?.movie?.progress ?? localStorage.getItem('reelHomeMovieProgress');
+    const tvTitle=s?.tv?.title||localStorage.getItem('reelHomeTvTitle');
+    const tvMeta=s?.tv?.meta||localStorage.getItem('reelHomeTvMeta');
+    const tvPoster=s?.tv?.poster||localStorage.getItem('reelHomeTvPoster');
+    const tvS=Number(s?.tv?.season ?? localStorage.getItem('reelHomeTvSeason'));
+    const tvE=Number(s?.tv?.episode ?? localStorage.getItem('reelHomeTvEpisode'));
+    const tvT=Number(s?.tv?.totalEpisodes ?? localStorage.getItem('reelHomeTvTotalEpisodes'));
+    const tvC=Number(s?.tv?.completedEpisodes ?? localStorage.getItem('reelHomeTvCompletedEpisodes'));
 
-    if(s.movie){
-      if(s.movie.title)els.movieTitle.textContent=s.movie.title;
-      if(s.movie.meta)els.movieMeta.textContent=s.movie.meta;
-      if(els.moviePoster && s.movie.poster)els.moviePoster.innerHTML=s.movie.poster;
-      movieProgress=Math.max(0,Math.min(100,Number(s.movie.progress)||0));
-    }
+    if(movieTitle){els.movieTitle.textContent=movieTitle;}
+    if(movieMeta){els.movieMeta.textContent=movieMeta;}
+    if(moviePoster && els.moviePoster)els.moviePoster.innerHTML=moviePoster;
+    if(movieProg!==null && movieProg!==undefined && movieProg!=='')movieProgress=Math.max(0,Math.min(100,Number(movieProg)||0));
 
-    if(s.tv){
-      if(s.tv.title)els.tvTitle.textContent=s.tv.title;
-      if(s.tv.meta)els.tvMeta.textContent=s.tv.meta;
-      if(els.tvPoster && s.tv.poster)els.tvPoster.innerHTML=s.tv.poster;
-      tvSeason=Math.max(1,Number(s.tv.season)||1);
-      tvTotalEpisodes=Math.max(1,Number(s.tv.totalEpisodes)||1);
-      tvEpisode=Math.max(1,Math.min(Number(s.tv.episode)||1,tvTotalEpisodes));
-      tvCompletedEpisodes=Math.max(0,Math.min(Number(s.tv.completedEpisodes)||0,tvTotalEpisodes));
-    }
+    if(tvTitle)els.tvTitle.textContent=tvTitle;
+    if(tvPoster && els.tvPoster)els.tvPoster.innerHTML=tvPoster;
+    if(Number.isFinite(tvS)&&tvS>0)tvSeason=tvS;
+    if(Number.isFinite(tvT)&&tvT>0)tvTotalEpisodes=tvT;
+    if(Number.isFinite(tvE)&&tvE>0)tvEpisode=Math.min(tvE,tvTotalEpisodes);
+    if(Number.isFinite(tvC)&&tvC>=0)tvCompletedEpisodes=Math.min(tvC,tvTotalEpisodes);
+    if(tvMeta)els.tvMeta.textContent=tvMeta;
 
-    if(Array.isArray(s.want))want=s.want;
-    if(Array.isArray(s.watched))watched=s.watched;
-    if(s.counts)Object.assign(counts,s.counts);
-    if(s.goals)Object.assign(goals,s.goals);
-    if(s.settings)Object.assign(settings,s.settings);
-
-    if(typeof setMovieProgress==='function')setMovieProgress(movieProgress);
-    if(typeof syncTvUI==='function')syncTvUI();
-    if(typeof renderGoals==='function')renderGoals();
-    if(typeof applySettings==='function')applySettings();
-  }catch(e){
-    console.warn('Reel could not restore saved state',e);
-  }
+    setMovieProgress(movieProgress);
+    syncTvUI();
+  }catch(e){console.warn('Could not restore Reel Home',e);}
 }
-
-window.addEventListener('pagehide',persistReel);
-window.addEventListener('beforeunload',persistReel);
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='hidden')persistReel();
-});
+window.addEventListener('pagehide',persistHome);
+window.addEventListener('beforeunload',persistHome);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persistHome();});
 
 function save(){
  localStorage.setItem('reelWant',JSON.stringify(want));
@@ -618,7 +603,7 @@ function save(){
  localStorage.setItem('reelTvTotalEpisodes',tvTotalEpisodes);
  localStorage.setItem('reelTvCompletedEpisodes',tvCompletedEpisodes);
 
-  persistReel();
+  persistHome();
 }
 function showView(id){
  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));
@@ -1214,5 +1199,5 @@ renderGoals();
 
 
 
-setTimeout(restoreReel,50);
+setTimeout(restoreHome,50);
 </script></body></html>
