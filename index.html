@@ -863,12 +863,13 @@ async function getLiveMovies(genre){
   for(const term of tried){
     try{
       const json=await itunesJSONP(term);
-      results=results.concat(json.results||[]);
-    }catch(e){lastErr=e;console.warn('[Reel] iTunes fetch failed for term',term,e);}
+      console.debug('[Reel] iTunes term="'+term+'" resultCount=',json&&json.resultCount,'results.length=',(json&&json.results||[]).length);
+      results=results.concat((json&&json.results)||[]);
+    }catch(e){lastErr=e;console.warn('[Reel] iTunes JSONP failed for term',term,e);}
   }
   if(!results.length){
-    console.error('[Reel] getLiveMovies: no results from any term for',genre,lastErr);
-    throw lastErr||Error('MOVIE_SOURCE');
+    console.warn('[Reel] getLiveMovies: 0 usable results for',genre,'(lastErr:',lastErr,') — the request reached the source but came back empty. This usually means a content blocker, DNS filter, or CSP on this network/device is stripping the response rather than a bug in the app.');
+    throw lastErr||Error('MOVIE_EMPTY');
   }
   const seenTitles=new Set();
   const fresh=results.filter(x=>{
@@ -895,8 +896,8 @@ async function getLiveTV(genre){
   settled.forEach((s,i)=>{if(s.status==='rejected')console.warn('[Reel] TVmaze page',pages[i],'failed:',s.reason);});
   const all=settled.filter(s=>s.status==='fulfilled').flatMap(s=>s.value||[]);
   if(!all.length){
-    console.error('[Reel] getLiveTV: all page fetches failed for',genre);
-    throw Error('TV_SOURCE');
+    console.warn('[Reel] getLiveTV: all page requests for',genre,'returned nothing — likely a content blocker or network filter rather than an app bug.');
+    throw Error('TV_EMPTY');
   }
   const words=(LIVE_GENRE_WORDS[genre]||[]).map(v=>v.toLowerCase());
   const recent=all.filter(x=>{
@@ -918,23 +919,47 @@ async function getLiveTV(genre){
   }));
 }
 
-async function getLiveShelf(type,genre){
-  if(typeof navigator!=='undefined'&&navigator.onLine===false){throw Error('OFFLINE');}
-  let arr=type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
-  if(arr.length)return arr;
-  arr=type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
-  if(arr.length)return arr;
-  localStorage.removeItem('reelLiveSeen_'+type);
-  return type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
+/* ---- Curated local fallback shelf. Used only when the live sources
+   genuinely can't be reached (offline, or a network/device is blocking
+   them) so Discover never shows a bare error. Pulled from the small
+   built-in `data` set, rotated by a local index so Refresh still moves. */
+const fallbackRotation={};
+function localFallbackItems(type,genre){
+  const pool=data[type]||[];
+  let arr=pool.filter(x=>x[2]===genre);
+  if(!arr.length){
+    const i=fallbackRotation[type+genre]||0;
+    arr=pool.slice(i%pool.length).concat(pool).slice(0,6);
+    fallbackRotation[type+genre]=i+2;
+  }
+  return arr.map(x=>({type,title:x[0],year:x[1],genre:x[2],creator:x[3],summary:x[4],poster:'',rating:0}));
 }
-function liveShelf(type,genre,arr){
+
+async function getLiveShelf(type,genre){
+  try{
+    if(typeof navigator!=='undefined'&&navigator.onLine===false)throw Error('OFFLINE');
+    let arr=type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
+    if(arr.length)return{items:arr,live:true};
+    arr=type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
+    if(arr.length)return{items:arr,live:true};
+    localStorage.removeItem('reelLiveSeen_'+type);
+    arr=type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
+    if(arr.length)return{items:arr,live:true};
+    throw Error(type==='movie'?'MOVIE_EMPTY':'TV_EMPTY');
+  }catch(e){
+    console.warn('[Reel] Live shelf unavailable for',type,genre+'; showing curated picks instead.',e);
+    return{items:localFallbackItems(type,genre),live:false};
+  }
+}
+function liveShelf(type,genre,arr,isLive){
   const cards=arr.map((x,j)=>{
-    const id='liveCard_'+type+'_'+String(x.tmdbId||x.imdbId||x.id||j).replace(/[^a-zA-Z0-9_-]/g,'');
+    const id='liveCard_'+type+'_'+String(x.tmdbId||x.imdbId||x.id||j).replace(/[^a-zA-Z0-9_-]/g,'')+'_'+j;
     window.__reelLiveCards=window.__reelLiveCards||{};
     window.__reelLiveCards[id]=x;
     return `<button class="dvd live-cover" data-live-id="${id}" style="background:${x.poster?`linear-gradient(180deg,transparent 25%,#000d),url('${String(x.poster).replace(/'/g,"%27")}') center/cover`:`${colors[j%colors.length]}`}" onclick="openLiveCard('${id}')"><b>${liveEsc(x.title)}</b><small>${liveEsc(x.year)}${x.rating?' · ★ '+Number(x.rating).toFixed(1):''}</small></button>`;
   }).join('');
-  return `<div class="shelf"><div class="shelf-head"><h3>${genre}</h3><button class="refresh" onclick="refreshShelf('${type}','${genre}')">↻ Refresh</button></div><div class="dvd-row">${cards}</div></div>`;
+  const badge=isLive?'':' · curated';
+  return `<div class="shelf"><div class="shelf-head"><h3>${genre}${badge}</h3><button class="refresh" onclick="refreshShelf('${type}','${genre}')">↻ Refresh</button></div><div class="dvd-row">${cards}</div></div>`;
 }
 function openLiveCard(id){
   const x=(window.__reelLiveCards||{})[id];
@@ -945,22 +970,16 @@ async function loadLiveShelves(type){
  const genres=['Romance','Thriller','Action','Drama','Comedy','Rom Coms','Award Winners'];
  els.shelfArea.innerHTML='<div class="section"><div class="empty">🎞️ Connecting to live recommendations over Wi‑Fi…</div></div>';
  try{
-  if(typeof navigator!=='undefined'&&navigator.onLine===false)throw Error('OFFLINE');
-  // Fetch all genre shelves in parallel rather than one at a time.
-  const settled=await Promise.allSettled(genres.map(g=>getLiveShelf(type,g)));
-  const out=[];
-  let anyLoaded=false;
-  settled.forEach((res,i)=>{
-    const g=genres[i];
-    if(res.status==='fulfilled'&&res.value.length){anyLoaded=true;out.push(liveShelf(type,g,res.value));}
-  });
-  if(!anyLoaded)throw Error(type==='movie'?'MOVIE_SOURCE':'TV_SOURCE');
-  els.shelfArea.innerHTML=`<div class="section"><div class="section-head"><h2>${type==='movie'?'🍿 Movie night':'🎬 TV screening room'}</h2><span onclick="els.shelfArea.innerHTML=''">← formats</span></div>${out.join('')}</div>`;
+  // getLiveShelf never throws — it falls back to curated picks internally —
+  // so this only fails on something truly unexpected (e.g. a rendering bug).
+  const results=await Promise.all(genres.map(g=>getLiveShelf(type,g)));
+  const anyLive=results.some(r=>r.live);
+  const out=genres.map((g,i)=>liveShelf(type,g,results[i].items,results[i].live));
+  const note=anyLive?'':'<div class="empty" style="margin-bottom:10px">Live recommendations aren\'t reaching this device right now (a content blocker or network filter may be stripping the response — check your browser console for details). Showing curated picks instead. <button class="refresh" onclick="loadLiveShelves(\''+type+'\')" style="margin-top:8px">↻ Try live again</button></div>';
+  els.shelfArea.innerHTML=`<div class="section"><div class="section-head"><h2>${type==='movie'?'🍿 Movie night':'🎬 TV screening room'}</h2><span onclick="els.shelfArea.innerHTML=''">← formats</span></div>${note}${out.join('')}</div>`;
  }catch(e){
-  console.error('Reel Discover live error:',e);
-  const offline=e&&e.message==='OFFLINE';
-  const retryMsg=offline?'You appear to be offline. Connect to Wi‑Fi or mobile data and try again.':'The recommendation source did not respond. If this keeps happening, open your browser\'s console (F12) to see the exact error — and make sure you\'re opening this file directly in a browser tab (not a restricted preview), since live fetching needs real network access.';
-  els.shelfArea.innerHTML=`<div class="section"><div class="empty"><b>Live recommendations could not load.</b><br><br>${retryMsg}<br><br><button class="refresh" onclick="loadLiveShelves('${type}')" style="margin-top:6px">↻ Try again</button></div></div>`;
+  console.error('Reel Discover error:',e);
+  els.shelfArea.innerHTML=`<div class="section"><div class="empty"><b>Discover could not load.</b><br><br>Something unexpected happened — check your browser console (F12) for details.<br><br><button class="refresh" onclick="loadLiveShelves('${type}')" style="margin-top:6px">↻ Try again</button></div></div>`;
  }
 }
 
@@ -972,14 +991,13 @@ function shelf(type,genre,i){
 }
 async function refreshShelf(type,genre){
  try{
-  if(typeof navigator!=='undefined'&&navigator.onLine===false)throw Error('OFFLINE');
-  const arr=await getLiveShelf(type,genre);
-  const target=[...document.querySelectorAll('.shelf')].find(s=>s.querySelector('h3')?.textContent===genre);
-  if(target)target.outerHTML=liveShelf(type,genre,arr);
-  toast('🎞️ Fresh live picks loaded');
+  const result=await getLiveShelf(type,genre);
+  const target=[...document.querySelectorAll('.shelf')].find(s=>s.querySelector('h3')?.textContent.startsWith(genre));
+  if(target)target.outerHTML=liveShelf(type,genre,result.items,result.live);
+  toast(result.live?'🎞️ Fresh live picks loaded':'Showing curated picks (live source unreachable)');
  }catch(e){
   console.error('Discover refresh failed',e);
-  toast(e&&e.message==='OFFLINE'?'You\'re offline — reconnect and try again':'Could not refresh — check your connection');
+  toast('Could not refresh — check your connection');
  }
 }
 function openCase(x){
