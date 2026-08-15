@@ -1,0 +1,16 @@
+{
+  "name": "Reel",
+  "short_name": "Reel",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b080b",
+  "theme_color": "#5b1232",
+  "icons": [
+    {
+      "src": "reel-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
