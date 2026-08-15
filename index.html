@@ -352,7 +352,6 @@ body{color:#f4ede3}
 
 <nav class="nav"><button class="active" data-v="home"><span class="ico">⌂</span>Home</button><button data-v="discover"><span class="ico">🎟️</span>Discover</button><button data-v="library"><span class="ico">♡</span>My Cinema</button><button data-v="settings"><span class="ico">⚙</span>Settings</button></nav>
 
-
 <div class="modal" id="editorModal">
   <div class="editor-card">
     <button class="x" onclick="closeEditor()">×</button>
@@ -374,19 +373,19 @@ body{color:#f4ede3}
       </label>
       <label id="editTimeLabel">Runtime<input id="editTimeInput" type="text" placeholder="2h 15m"></label>
       <div id="editEpisodeLabel">
-  <div class="episode-edit-title">Episodes</div>
-  <div class="episode-edit-grid">
-    <label>Season
-      <input id="editSeasonInput" type="number" min="1" placeholder="3">
-    </label>
-    <label>Current episode
-      <input id="editEpisodeInput" type="number" min="1" placeholder="1">
-    </label>
-    <label>Total episodes
-      <input id="editTotalEpisodesInput" type="number" min="1" placeholder="10">
-    </label>
-  </div>
-</div>
+        <div class="episode-edit-title">Episodes</div>
+        <div class="episode-edit-grid">
+          <label>Season
+            <input id="editSeasonInput" type="number" min="1" placeholder="3">
+          </label>
+          <label>Current episode
+            <input id="editEpisodeInput" type="number" min="1" placeholder="1">
+          </label>
+          <label>Total episodes
+            <input id="editTotalEpisodesInput" type="number" min="1" placeholder="10">
+          </label>
+        </div>
+      </div>
       <button class="save-edit" onclick="saveEditor()">Save details</button>
     </div>
 
@@ -428,776 +427,480 @@ body{color:#f4ede3}
     </div>
 
     <div id="editWatchedPane" style="display:none">
-      <p class="edit-help">Add something you have already watched. It will go straight into your Watched list and count as one completed movie or TV series.</p>
-      <label>Name
-        <input id="manualWatchedName" type="text" placeholder="Movie or TV series">
-      </label>
-      <label>Year
-        <input id="manualWatchedYear" type="number" placeholder="2026">
+      <label>Title
+        <input id="addWatchedTitle" type="text" placeholder="Title watched">
       </label>
       <label>Type
-        <select id="manualWatchedType">
+        <select id="addWatchedType">
           <option value="movie">Movie</option>
-          <option value="tv">TV series</option>
+          <option value="tv">TV Series</option>
         </select>
       </label>
-      <button class="save-edit" onclick="addManualWatched()">Add to Watched</button>
+      <label>Year
+        <input id="addWatchedYear" type="number" placeholder="2026">
+      </label>
+      <button class="save-edit" onclick="addManualWatched()">Add to library</button>
     </div>
   </div>
 </div>
 
-<div class="modal" id="modal"><button class="x" onclick="closeCase()">×</button><div class="case"><div class="case-inner"><div class="cover" id="cover"></div><div><div class="eyebrow" id="caseType"></div><h3 id="caseTitle"></h3><div id="caseMeta" style="font-size:10px;color:#c9bbac"></div><p id="caseSummary"></p></div><button id="addWatchBtn" onclick="addWatch()">+ ADD TO WATCHLIST</button></div></div></div>
-<div class="clack" id="clack"><div>🎬<b>EPISODE COMPLETE!</b></div></div><div class="burst" id="burst"></div>
+<div class="modal" id="detailModal">
+  <div class="case">
+    <button class="x" onclick="closeModal()">×</button>
+    <div class="case-inner">
+      <div class="cover" id="modalCover">COVER</div>
+      <div>
+        <h3 id="modalTitle">Title</h3>
+        <small id="modalMeta">Year</small>
+        <p id="modalDesc">Description</p>
+      </div>
+      <button onclick="modalAction()">Add to Want to Watch</button>
+    </div>
+  </div>
+</div>
+
+<div class="burst" id="burstContainer"></div>
+<div class="clack" id="clackOverlay">
+  <div>🎬<b>CLACK!</b></div>
+</div>
 
 <script>
-/* Reel V3 — clean prototype */
-const data={
- movie:[
-  ['The Grand Budapest Hotel','2014','Comedy','Wes Anderson','A whimsical concierge and his lobby boy become caught up in a mysterious inheritance.'],
-  ['Parasite','2019','Thriller','Bong Joon-ho','A struggling family slowly enters the lives of a wealthy household, with dark consequences.'],
-  ['Dune: Part Two','2024','Sci-Fi','Denis Villeneuve','Paul Atreides joins the Fremen while seeking revenge against those who destroyed his family.'],
-  ['The Shining','1980','Horror','Stanley Kubrick','A family heads to an isolated hotel where winter brings a terrifying descent into madness.'],
-  ['Before Sunrise','1995','Romance','Richard Linklater','Two strangers meet on a train and spend one unforgettable night walking through Vienna.'],
-  ['Mad Max: Fury Road','2015','Action','George Miller','A runaway convoy races across a wasteland in a fight for freedom.']
- ],
- tv:[
-  ['Severance','2022','Thriller','Dan Erickson','Employees undergo a procedure separating their work memories from personal lives.'],
-  ['Fleabag','2016','Comedy','Phoebe Waller-Bridge','A sharp, funny and wounded woman navigates family, love and grief.'],
-  ['Dark','2017','Sci-Fi','Baran bo Odar','A missing child exposes a time-bending mystery connecting four families.'],
-  ['Succession','2018','Drama','Jesse Armstrong','A powerful family fights for control of a global media empire.'],
-  ['The Last of Us','2023','Drama','Craig Mazin','A hardened survivor escorts a teenage girl across a dangerous America.'],
-  ['Only Murders in the Building','2021','Comedy','Steve Martin','Three strangers obsessed with true crime investigate a murder in their apartment building.']
- ]};
-const colors=['linear-gradient(145deg,#81263b,#2b0e18)','linear-gradient(145deg,#315e67,#10272e)','linear-gradient(145deg,#704a25,#24170d)','linear-gradient(145deg,#5a3471,#1f1028)','linear-gradient(145deg,#8b5b20,#30200c)'];
-
-const $=id=>document.getElementById(id);
-const els={
- movieBar:$('movieBar'),tvBar:$('tvBar'),movieTime:$('movieTime'),
- movieSliderHit:$('movieSliderHit'),tvSliderHit:$('tvSliderHit'),
- movieTitle:$('homeMovieTitle'),movieMeta:$('homeMovieMeta'),moviePoster:$('homeMoviePoster'),tvTitle:$('homeTvTitle'),tvMeta:$('homeTvMeta'),tvPoster:$('homeTvPoster'),
- movieMonthGoal:$('movieMonthGoal'),movieYearGoal:$('movieYearGoal'),tvMonthGoal:$('tvMonthGoal'),tvYearGoal:$('tvYearGoal'),
- movieMonthBar:$('movieMonthBar'),movieYearBar:$('movieYearBar'),tvMonthBar:$('tvMonthBar'),tvYearBar:$('tvYearBar'),
- editorModal:$('editorModal'),editorEyebrow:$('editorEyebrow'),editorTitle:$('editorTitle'),
- editNameInput:$('editNameInput'),editYearInput:$('editYearInput'),editTimeInput:$('editTimeInput'),editEpisodeInput:$('editEpisodeInput'),
- editEpisodeLabel:$('editEpisodeLabel'),editTimeLabel:$('editTimeLabel'),editSeasonInput:$('editSeasonInput'),editTotalEpisodesInput:$('editTotalEpisodesInput'),
- modal:$('modal'),cover:$('cover'),caseType:$('caseType'),caseTitle:$('caseTitle'),caseMeta:$('caseMeta'),caseSummary:$('caseSummary'),
- libraryArea:$('libraryArea'),shelfArea:$('shelfArea'),burst:$('burst'),clack:$('clack'),
- nameSettingText:$('nameSettingText'),fontSettingText:$('fontSettingText'),themeSettingText:$('themeSettingText'),childSwitch:$('childSwitch')
-};
-
-let selected=null,editorKind='movie';
-let want=JSON.parse(localStorage.getItem('reelWant')||'[]');
-let watched=JSON.parse(localStorage.getItem('reelWatched')||'[]');
-let settings=JSON.parse(localStorage.getItem('reelSettings')||'{"name":"Watcher","child":false,"font":"modern","theme":"system"}');
-let goals=JSON.parse(localStorage.getItem('reelGoals')||'{"movieMonth":5,"movieYear":50,"tvMonth":30,"tvYear":300}');
-let counts=JSON.parse(localStorage.getItem('reelCounts')||'{"movieMonth":0,"movieYear":0,"tvMonth":0,"tvYear":0}');
-if(!localStorage.getItem('reelV31Zeroed')){
-  counts.movieMonth=0;
-  counts.movieYear=0;
-  counts.tvMonth=0;
-  counts.tvYear=0;
-  localStorage.setItem('reelCounts',JSON.stringify(counts));
-  localStorage.setItem('reelV31Zeroed','1');
-}
-
-let movieProgress=Number(localStorage.getItem('reelMovieProgress')||52);
-let tvSeason=Number(localStorage.getItem('reelTvSeason')||3);
-let tvEpisode=Number(localStorage.getItem('reelTvEpisode')||1);
-let tvTotalEpisodes=Number(localStorage.getItem('reelTvTotalEpisodes')||10);
-let tvCompletedEpisodes=Number(localStorage.getItem('reelTvCompletedEpisodes')||Math.max(0,tvEpisode-1));
-if(!localStorage.getItem('reelV26Initialized')){
-  tvSeason=3;
-  tvEpisode=1;
-  tvTotalEpisodes=10;
-  tvCompletedEpisodes=0;
-  localStorage.setItem('reelTvSeason','3');
-  localStorage.setItem('reelTvEpisode','1');
-  localStorage.setItem('reelTvTotalEpisodes','10');
-  localStorage.setItem('reelTvCompletedEpisodes','0');
-  localStorage.setItem('reelV26Initialized','1');
-}
-if(!localStorage.getItem('reelV14Initialized')){
-  tvSeason=3;
-  tvEpisode=1;
-  tvTotalEpisodes=10;
-  tvCompletedEpisodes=0;
-  localStorage.setItem('reelV14Initialized','1');
-  localStorage.setItem('reelTvSeason','3');
-  localStorage.setItem('reelTvEpisode','1');
-  localStorage.setItem('reelTvTotalEpisodes','10');
-  localStorage.setItem('reelTvCompletedEpisodes','0');
-}
-
-
-/* REEL V44 — durable Home state */
-const REEL_HOME_KEY='reelHomeStateV44';
-function persistHome(){
-  try{
-    const state={
-      movie:{title:els.movieTitle.textContent,meta:els.movieMeta.textContent,poster:els.moviePoster?.innerHTML||'',progress:movieProgress},
-      tv:{title:els.tvTitle.textContent,meta:els.tvMeta.textContent,poster:els.tvPoster?.innerHTML||'',season:tvSeason,episode:tvEpisode,totalEpisodes:tvTotalEpisodes,completedEpisodes:tvCompletedEpisodes},
-      savedAt:Date.now()
-    };
-    localStorage.setItem(REEL_HOME_KEY,JSON.stringify(state));
-    // Dedicated keys make the save independently recoverable even if a future
-    // version changes the shape of the combined state object.
-    localStorage.setItem('reelHomeMovieTitle',state.movie.title);
-    localStorage.setItem('reelHomeMovieMeta',state.movie.meta);
-    localStorage.setItem('reelHomeMoviePoster',state.movie.poster);
-    localStorage.setItem('reelHomeMovieProgress',String(state.movie.progress));
-    localStorage.setItem('reelHomeTvTitle',state.tv.title);
-    localStorage.setItem('reelHomeTvMeta',state.tv.meta);
-    localStorage.setItem('reelHomeTvPoster',state.tv.poster);
-    localStorage.setItem('reelHomeTvSeason',String(state.tv.season));
-    localStorage.setItem('reelHomeTvEpisode',String(state.tv.episode));
-    localStorage.setItem('reelHomeTvTotalEpisodes',String(state.tv.totalEpisodes));
-    localStorage.setItem('reelHomeTvCompletedEpisodes',String(state.tv.completedEpisodes));
-  }catch(e){console.warn('Could not persist Reel Home',e);}
-}
-function restoreHome(){
-  try{
-    const raw=localStorage.getItem(REEL_HOME_KEY);
-    const s=raw?JSON.parse(raw):null;
-    const movieTitle=s?.movie?.title||localStorage.getItem('reelHomeMovieTitle');
-    const movieMeta=s?.movie?.meta||localStorage.getItem('reelHomeMovieMeta');
-    const moviePoster=s?.movie?.poster||localStorage.getItem('reelHomeMoviePoster');
-    const movieProg=s?.movie?.progress ?? localStorage.getItem('reelHomeMovieProgress');
-    const tvTitle=s?.tv?.title||localStorage.getItem('reelHomeTvTitle');
-    const tvMeta=s?.tv?.meta||localStorage.getItem('reelHomeTvMeta');
-    const tvPoster=s?.tv?.poster||localStorage.getItem('reelHomeTvPoster');
-    const tvS=Number(s?.tv?.season ?? localStorage.getItem('reelHomeTvSeason'));
-    const tvE=Number(s?.tv?.episode ?? localStorage.getItem('reelHomeTvEpisode'));
-    const tvT=Number(s?.tv?.totalEpisodes ?? localStorage.getItem('reelHomeTvTotalEpisodes'));
-    const tvC=Number(s?.tv?.completedEpisodes ?? localStorage.getItem('reelHomeTvCompletedEpisodes'));
-
-    if(movieTitle){els.movieTitle.textContent=movieTitle;}
-    if(movieMeta){els.movieMeta.textContent=movieMeta;}
-    if(moviePoster && els.moviePoster)els.moviePoster.innerHTML=moviePoster;
-    if(movieProg!==null && movieProg!==undefined && movieProg!=='')movieProgress=Math.max(0,Math.min(100,Number(movieProg)||0));
-
-    if(tvTitle)els.tvTitle.textContent=tvTitle;
-    if(tvPoster && els.tvPoster)els.tvPoster.innerHTML=tvPoster;
-    if(Number.isFinite(tvS)&&tvS>0)tvSeason=tvS;
-    if(Number.isFinite(tvT)&&tvT>0)tvTotalEpisodes=tvT;
-    if(Number.isFinite(tvE)&&tvE>0)tvEpisode=Math.min(tvE,tvTotalEpisodes);
-    if(Number.isFinite(tvC)&&tvC>=0)tvCompletedEpisodes=Math.min(tvC,tvTotalEpisodes);
-    if(tvMeta)els.tvMeta.textContent=tvMeta;
-
-    setMovieProgress(movieProgress);
-    syncTvUI();
-  }catch(e){console.warn('Could not restore Reel Home',e);}
-}
-window.addEventListener('pagehide',persistHome);
-window.addEventListener('beforeunload',persistHome);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persistHome();});
-
-function save(){
- localStorage.setItem('reelWant',JSON.stringify(want));
- localStorage.setItem('reelWatched',JSON.stringify(watched));
- localStorage.setItem('reelSettings',JSON.stringify(settings));
- localStorage.setItem('reelGoals',JSON.stringify(goals));
- localStorage.setItem('reelCounts',JSON.stringify(counts));
- localStorage.setItem('reelMovieProgress',movieProgress);
- localStorage.setItem('reelTvSeason',tvSeason);
- localStorage.setItem('reelTvEpisode',tvEpisode);
- localStorage.setItem('reelTvTotalEpisodes',tvTotalEpisodes);
- localStorage.setItem('reelTvCompletedEpisodes',tvCompletedEpisodes);
-
-  persistHome();
-}
-function showView(id){
- document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));
- document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===id));
- window.scrollTo(0,0);
-}
-document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.v)));
-
-function applySettings(){
- document.body.classList.toggle('light',settings.theme==='light'||(settings.theme==='system'&&window.matchMedia('(prefers-color-scheme:light)').matches));
- document.body.classList.remove('font-serif','font-modern','font-access');
- document.body.classList.add('font-'+settings.font);
- els.nameSettingText.textContent=settings.name||'Your name';
- els.fontSettingText.textContent={modern:'System rounded',serif:'Classic serif',access:'Accessible'}[settings.font];
- els.themeSettingText.textContent={system:'System — follow phone',light:'Light',dark:'Dark'}[settings.theme];
- els.childSwitch.textContent=settings.child?'ON':'OFF';
- els.childSwitch.classList.toggle('on',settings.child);
-}
-applySettings();
-if(window.matchMedia('(prefers-color-scheme:light)').addEventListener) window.matchMedia('(prefers-color-scheme:light)').addEventListener('change',applySettings);
-
-function renderGoals(){
- els.movieMonthGoal.textContent=`${counts.movieMonth} / ${goals.movieMonth}`;
- els.movieYearGoal.textContent=`${counts.movieYear} / ${goals.movieYear}`;
- els.tvMonthGoal.textContent=`${counts.tvMonth} / ${goals.tvMonth}`;
- els.tvYearGoal.textContent=`${counts.tvYear} / ${goals.tvYear}`;
- els.movieMonthBar.style.width=Math.min(100,counts.movieMonth/goals.movieMonth*100)+'%';
- els.movieYearBar.style.width=Math.min(100,counts.movieYear/goals.movieYear*100)+'%';
- els.tvMonthBar.style.width=Math.min(100,counts.tvMonth/goals.tvMonth*100)+'%';
- els.tvYearBar.style.width=Math.min(100,counts.tvYear/goals.tvYear*100)+'%';
-}
-function editQuota(type,period){
- const key=type+(period==='month'?'Month':'Year');
- const current=goals[key];
- const n=prompt(`How many ${type==='movie'?'movies':'TV series'} do you want to watch ${period==='month'?'this month':'this year'}?`,current);
- if(n!==null&&!isNaN(n)&&Number(n)>0){goals[key]=Math.round(Number(n));save();renderGoals();toast('🎯 Goal updated');}
-}
-function editGoals(type){
- const monthKey=type+'Month',yearKey=type+'Year';
- const label=type==='movie'?'movies':'TV series';
- const m=prompt(`How many ${label} do you want this month?`,goals[monthKey]);
- if(m===null||isNaN(m)||Number(m)<=0)return;
- const y=prompt(`How many ${label} do you want this year?`,goals[yearKey]);
- if(y===null||isNaN(y)||Number(y)<=0)return;
- goals[monthKey]=Math.round(Number(m));goals[yearKey]=Math.round(Number(y));
- save();renderGoals();toast('🎯 Goals updated');
-}
-function editName(){const n=prompt('What should Reel call you?',settings.name);if(n!==null&&n.trim()){settings.name=n.trim();save();applySettings();toast('Name updated');}}
-function toggleChildFriendly(){settings.child=!settings.child;save();applySettings();toast(settings.child?'👨‍👩‍👧 Child-friendly mode on':'Child-friendly mode off');}
-function cycleFont(){settings.font=settings.font==='modern'?'serif':settings.font==='serif'?'access':'modern';save();applySettings();toast('Font changed');}
-function cycleTheme(){settings.theme=settings.theme==='system'?'dark':settings.theme==='dark'?'light':'system';save();applySettings();toast('Appearance: '+settings.theme);}
-
-function openEditor(type){
-  editorKind=type;
-  switchEditMode('details');
-  els.editorModal.classList.add('show');
-
-  const isTV=(type==='tv');
-  els.editorEyebrow.textContent=isTV?'EDIT TV SERIES':'EDIT MOVIE';
-  els.editorTitle.textContent=isTV?'Edit your TV series':'Edit your movie';
-
-  els.editTimeLabel.style.display=isTV?'none':'block';
-  els.editEpisodeLabel.style.display=isTV?'block':'none';
-
-  els.editNameInput.value=isTV?els.tvTitle.textContent:els.movieTitle.textContent;
-  els.editYearInput.value=(isTV?els.tvMeta.textContent:els.movieMeta.textContent).split('·')[0].trim()||'2026';
-
-  if(isTV){
-    els.editSeasonInput.value=tvSeason;
-    els.editEpisodeInput.value=tvEpisode;
-    els.editTotalEpisodesInput.value=tvTotalEpisodes;
-  }else{
-    els.editTimeInput.value='2h 15m';
-  }
-}
-function closeEditor(){els.editorModal.classList.remove('show');}
-function switchEditMode(mode){
-  const panes={
-    details:document.getElementById('editDetailsPane'),
-    goals:document.getElementById('editGoalsPane'),
-    watched:document.getElementById('editWatchedPane')
-  };
-  const tabs={
-    details:document.getElementById('editDetailsTab'),
-    goals:document.getElementById('editGoalsTab'),
-    watched:document.getElementById('editWatchedTab')
-  };
-  Object.keys(panes).forEach(k=>{
-    panes[k].style.display=(k===mode?'block':'none');
-    tabs[k].classList.toggle('active',k===mode);
-  });
-  if(mode==='goals'){
-    document.getElementById('editMovieMonthQuota').value=goals.movieMonth;
-    document.getElementById('editMovieYearQuota').value=goals.movieYear;
-    document.getElementById('editTvMonthQuota').value=goals.tvMonth;
-    document.getElementById('editTvYearQuota').value=goals.tvYear;
-  }
-}
-function saveAllQuotas(){
-  const mm=Number($('editMovieMonthQuota').value);
-  const my=Number($('editMovieYearQuota').value);
-  const tm=Number($('editTvMonthQuota').value);
-  const ty=Number($('editTvYearQuota').value);
-  const mmc=Math.max(0,Number($('editMovieMonthCount').value)||0);
-  const myc=Math.max(0,Number($('editMovieYearCount').value)||0);
-  const tmc=Math.max(0,Number($('editTvMonthCount').value)||0);
-  const tyc=Math.max(0,Number($('editTvYearCount').value)||0);
-  if([mm,my,tm,ty].some(v=>!Number.isFinite(v)||v<1)){
-    toast('Quota targets must be at least 1'); return;
-  }
-  goals.movieMonth=mm; goals.movieYear=my; goals.tvMonth=tm; goals.tvYear=ty;
-  counts.movieMonth=mmc; counts.movieYear=myc;
-  counts.tvMonth=tmc; counts.tvYear=tyc;
-  save(); renderGoals(); closeEditor();
-  toast('✓ Quotas and watched counts updated');
-}
-function addManualWatched(){
-  const name=$('manualWatchedName').value.trim();
-  const year=$('manualWatchedYear').value||'2026';
-  const type=$('manualWatchedType').value;
-  if(!name){toast('Enter a title');return;}
-  const key=type+'|'+name;
-  if(!watched.some(x=>x.key===key)){
-    watched.push({type,title:name,year,genre:'',key,fullyWatched:true,manual:true});
-    if(type==='movie'){counts.movieMonth++;counts.movieYear++;}
-    else{counts.tvMonth++;counts.tvYear++;}
-    save();renderGoals();
-  }
-  closeEditor();toast('✓ Added to Watched');
-}
-
-function posterText(title){
-  return String(title||'').trim().toUpperCase().split(/\s+/).slice(0,4).join('<br>');
-}
-function saveEditor(){
- const name=els.editNameInput.value.trim();
- if(!name){toast('Please enter a name');return;}
-
- if(editorKind==='movie'){
-   els.movieTitle.textContent=name;
-   els.movieMeta.textContent=`${els.editYearInput.value||'2026'} · ${els.editTimeInput.value||'runtime not set'}`;
-   if(els.moviePoster)els.moviePoster.innerHTML=posterText(name);
- }else{
-   const season=Math.max(1,Number(els.editSeasonInput.value)||1);
-   const total=Math.max(1,Number(els.editTotalEpisodesInput.value)||1);
-   const episode=Math.max(1,Math.min(Number(els.editEpisodeInput.value)||1,total));
-
-   els.tvTitle.textContent=name;
-   if(els.tvPoster)els.tvPoster.innerHTML=posterText(name);
-
-   tvSeason=season;
-   tvTotalEpisodes=total;
-   tvEpisode=episode;
-   tvCompletedEpisodes=Math.max(0,episode-1);
-
-   syncTvUI();
- }
- save();
- closeEditor();
- toast('✓ Home updated');
-}
-
-function setMovieProgress(p){
-  movieProgress=Math.max(0,Math.min(100,Number(p)));
-  els.movieBar.style.setProperty('--p',movieProgress+'%');
-  els.movieSliderHit.value=movieProgress;
-  const sec=Math.round(169*60*movieProgress/100),h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
-  els.movieTime.textContent=[h,m,s].map(v=>String(v).padStart(2,'0')).join(':');
-  save();
-}
-function episodeSliderPercent(){
-  const total=Math.max(1,tvTotalEpisodes);
-  if(total<=1)return 0;
-  return ((tvEpisode-1)/(total-1))*100;
-}
-function syncTvUI(){
-  const pct=episodeSliderPercent();
-  els.tvSliderHit.value=pct;
-  els.tvBar.style.setProperty('--p',pct+'%');
-  els.tvMeta.textContent=`S${tvSeason} E${tvEpisode} of ${tvTotalEpisodes}`;
-  const startLabel=document.getElementById('tvProgressStart');
-  const endLabel=document.getElementById('tvProgressEnd');
-  if(startLabel)startLabel.textContent=`S${tvSeason} E${tvEpisode}`;
-  if(endLabel)endLabel.textContent=`S${tvSeason} E${tvTotalEpisodes}`;
-  updateTVClapper();
-}
-function setTvProgress(p){
-  const pct=Math.max(0,Math.min(100,Number(p)));
-  const total=Math.max(1,tvTotalEpisodes);
-  tvEpisode=total<=1?1:(Math.round((pct/100)*(total-1))+1);
-  tvCompletedEpisodes=Math.max(0,tvEpisode-1);
-  syncTvUI();
-  save();
-}
-els.movieSliderHit.addEventListener('input',e=>setMovieProgress(e.target.value));
-els.movieSliderHit.addEventListener('change',e=>setMovieProgress(e.target.value));
-
-function updateMovieBucket(){
-  const pct=Number(els.movieSliderHit.value||0);
-  const bucket=document.querySelector('.movie-bucket');
-  if(bucket) bucket.style.left=pct+'%';
-}
-els.movieSliderHit.addEventListener('input',updateMovieBucket);
-els.movieSliderHit.addEventListener('change',updateMovieBucket);
-
-els.tvSliderHit.addEventListener('input',e=>setTvProgress(e.target.value));
-els.tvSliderHit.addEventListener('change',e=>setTvProgress(e.target.value));
-
-function updateTVClapper(){
-  const pct=Number(els.tvSliderHit.value||0);
-  const clapper=document.getElementById('tvClapper');
-  if(clapper) clapper.style.left=pct+'%';
-}
-els.tvSliderHit.addEventListener('input',updateTVClapper);
-els.tvSliderHit.addEventListener('change',updateTVClapper);
-
-
-
-
-/* LIVE DISCOVER — no API key required.
-   Movies: public IMDbOT search endpoint (unofficial, no-login).
-   TV: TVmaze public API (no key for basic endpoints).
-   The app rotates query terms/pages and keeps a local seen-history so Refresh
-   tries to surface titles that have not appeared before.
-*/
-
-const LIVE_MOVIE_QUERIES=['a','e','i','o','u','the','love','night','man','girl','world','city','dark','life','summer','star','home','last','one','new'];
-const LIVE_TV_PAGES=[0,1,2,3,4,5,6,7,8,9];
-const LIVE_GENRE_WORDS={
-  Romance:['love','romance','heart','wedding'],
-  Thriller:['dark','crime','killer','mystery','night'],
-  Action:['action','war','hero','mission','fight'],
-  Drama:['life','family','story','drama','home'],
-  Comedy:['funny','comedy','friends','office'],
-  'Rom Coms':['love','romance','friends','wedding'],
-  'Award Winners':['award','best','oscar','winner']
-};
-function seenLive(type,id){return JSON.parse(localStorage.getItem('reelLiveSeen_'+type)||'[]').includes(String(id));}
-function markLive(type,id){const k='reelLiveSeen_'+type,a=JSON.parse(localStorage.getItem(k)||'[]');if(!a.includes(String(id)))a.push(String(id));while(a.length>5000)a.shift();localStorage.setItem(k,JSON.stringify(a));}
-function liveEsc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-
-function imdbSuggest(query){
-  return new Promise((resolve,reject)=>{
-    const q=String(query).toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,24);
-    const cb='reelImdb'+Math.random().toString(36).slice(2);
-    const script=document.createElement('script');
-    let done=false;
-    const timer=setTimeout(()=>finish(Error('MOVIE_TIMEOUT')),10000);
-    function finish(err,data){
-      if(done)return; done=true; clearTimeout(timer); script.remove();
-      try{delete window[cb]}catch(_){}
-      err?reject(err):resolve(data);
+  // --- Application State & Persistence ---
+  const loadStoredData = (key, fallback) => {
+    try {
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : fallback;
+    } catch (e) {
+      return fallback;
     }
-    window[cb]=data=>finish(null,data);
-    script.onerror=()=>finish(Error('MOVIE_SOURCE'));
-    script.src=`https://v2.sg.media-imdb.com/suggestion/x/${q}.json?callback=${cb}`;
-    document.head.appendChild(script);
-  });
-}
+  };
 
+  const state = {
+    activeTab: 'home',
+    activeEditorType: 'movie',
+    editMode: 'details',
+    userName: localStorage.getItem('reel_user') || 'Movie Fan',
+    childFriendly: localStorage.getItem('reel_child') === 'true',
+    fontStyle: localStorage.getItem('reel_font') || 'modern',
+    themeStyle: localStorage.getItem('reel_theme') || 'system',
+    
+    movie: loadStoredData('reel_current_movie', {
+      title: 'Interstellar',
+      year: 2014,
+      runtime: '2h 49m',
+      progressSec: 5220,
+      totalSec: 10140,
+      monthGoal: 5,
+      monthDone: 3,
+      yearGoal: 50,
+      yearDone: 18,
+      posterUrl: ''
+    }),
+    
+    tv: loadStoredData('reel_current_tv', {
+      title: 'The Bear',
+      year: 2024,
+      season: 3,
+      currentEp: 1,
+      totalEp: 10,
+      monthGoal: 5,
+      monthDone: 3,
+      yearGoal: 30,
+      yearDone: 18,
+      posterUrl: ''
+    }),
 
-let liveMovieGenres=null;
-async function api4devs(path){
-  const r=await fetch('https://api4devs.com/api/v1'+path);
-  if(!r.ok)throw Error('MOVIE_SOURCE');
-  return r.json();
-}
-async function getApi4DevsGenres(){
-  if(liveMovieGenres)return liveMovieGenres;
-  const data=await api4devs('/genres');
-  liveMovieGenres=Array.isArray(data)?data:(data.genres||data.results||[]);
-  return liveMovieGenres;
-}
-async function fetchJsonViaJina(url){
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),12000);
-  try{
-    const r=await fetch('https://r.jina.ai/'+url,{signal:controller.signal,headers:{Accept:'text/plain'}});
-    if(!r.ok)throw Error('SOURCE_HTTP');
-    const text=await r.text();
-    try{return JSON.parse(text);}catch(_){
-      const first=text.indexOf('{'), last=text.lastIndexOf('}');
-      if(first>=0&&last>first)return JSON.parse(text.slice(first,last+1));
-      throw Error('SOURCE_JSON');
-    }
-  }finally{clearTimeout(timer);}
-}
+    library: loadStoredData('reel_library', {
+      movie: { watchlist: [], watched: [{ title: 'Inception', year: 2010 }] },
+      tv: { watchlist: [], watched: [{ title: 'Succession', year: 2021 }] }
+    }),
 
+    activeModalItem: null
+  };
 
-async function cinemetaCatalog(type,catalog,params={}){
-  const qs=new URLSearchParams(params);
-  const url=`https://v3-cinemeta.strem.io/catalog/${type}/${catalog}.json${qs.toString()?'?'+qs.toString():''}`;
-  const r=await fetch(url);
-  if(!r.ok)throw Error('CINEMETA_HTTP');
-  const j=await r.json();
-  return Array.isArray(j.metas)?j.metas:[];
-}
-const CINEMETA_GENRE={
-  Romance:'Romance',Thriller:'Thriller',Action:'Action',Drama:'Drama',
-  Comedy:'Comedy','Rom Coms':'Comedy','Award Winners':'Drama'
-};
+  const discoverData = {
+    movie: [
+      { id: 'm1', title: 'Dune: Part Two', year: 2024, desc: 'Paul Atreides unites with Chani and the Fremen.', type: 'movie' },
+      { id: 'm2', title: 'Oppenheimer', year: 2023, desc: 'The story of J. Robert Oppenheimer.', type: 'movie' },
+      { id: 'm3', title: 'Spider-Man: Across the Spider-Verse', year: 2023, desc: 'Miles Morales catapults across the Multiverse.', type: 'movie' }
+    ],
+    tv: [
+      { id: 't1', title: 'Shōgun', year: 2024, desc: 'Lord Yoshii Toranaga discovers secrets in feudal Japan.', type: 'tv' },
+      { id: 't2', title: 'Severance', year: 2022, desc: 'Office workers whose memories have been surgically divided.', type: 'tv' },
+      { id: 't3', title: 'The Last of Us', year: 2023, desc: 'A hardened survivor takes charge of a 14-year-old girl.', type: 'tv' }
+    ]
+  };
 
+  // Explicit, unified Save Function
+  function saveState() {
+    localStorage.setItem('reel_current_movie', JSON.stringify(state.movie));
+    localStorage.setItem('reel_current_tv', JSON.stringify(state.tv));
+    localStorage.setItem('reel_library', JSON.stringify(state.library));
+    localStorage.setItem('reel_user', state.userName);
+    localStorage.setItem('reel_child', state.childFriendly);
+    localStorage.setItem('reel_font', state.fontStyle);
+    localStorage.setItem('reel_theme', state.themeStyle);
+  }
 
-const TMDB_READ_TOKEN="eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI5YWFiMjY4ZTA2OWEzNWEyNmM1YzhmOTFlYmMwMGU4OSIsIm5iZiI6MTc4Njc3NTg0NS43NTksInN1YiI6IjZhODAwOTI1NmFmMGM3ZDdjMWU4MjUwMCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.sKEmRw0VppqQ0---BSC7XaMatfJl-pqXvbGDdFbpKgw";
-const TMDB_BASE='https://api.themoviedb.org/3';
-const TMDB_IMG='https://image.tmdb.org/t/p/w500';
+  function init() {
+    setupNavigation();
+    setupSliders();
+    applySettings();
+    renderHome(); // Ensures saved state populates the DOM immediately on start
+  }
 
-const TMDB_GENRES={
-  movie:{Romance:10749,Thriller:53,Action:28,Drama:18,Comedy:35,'Rom Coms':10749,'Award Winners':18},
-  tv:{Romance:10749,Thriller:9648,Action:10759,Drama:18,Comedy:35,'Rom Coms':35,'Award Winners':18}
-};
-
-async function tmdbGet(path,params={}){
-  const qs=new URLSearchParams({language:'en-US',include_adult:'false',...params});
-  const r=await fetch(TMDB_BASE+path+'?'+qs.toString(),{
-    headers:{Authorization:'Bearer '+TMDB_READ_TOKEN,accept:'application/json'}
-  });
-  if(!r.ok) throw Error('TMDB '+r.status);
-  return r.json();
-}
-
-function tmdbPoster(path){
-  return path?TMDB_IMG+path:'';
-}
-
-async function getLiveMovies(genre){
-  const gid=TMDB_GENRES.movie[genre]||18;
-  const recentFrom=new Date();
-  recentFrom.setFullYear(recentFrom.getFullYear()-4);
-  const today=new Date().toISOString().slice(0,10);
-  const from=recentFrom.toISOString().slice(0,10);
-
-  const pages=[1,2,3].sort(()=>Math.random()-0.5);
-  const all=[];
-  for(const page of pages){
-    try{
-      const data=await tmdbGet('/discover/movie',{
-        with_genres:gid,
-        'primary_release_date.gte':from,
-        'primary_release_date.lte':today,
-        sort_by:'popularity.desc',
-        page,
-        'vote_count.gte':50
+  function setupNavigation() {
+    document.querySelectorAll('.nav button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.v;
+        document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(target).classList.add('active');
+        state.activeTab = target;
+        
+        if (target === 'discover') enterShelves('movie');
+        if (target === 'library') library('movie');
       });
-      all.push(...(data.results||[]));
-    }catch(e){console.warn('TMDB movie page failed',page,e);}
-  }
-
-  const unique=[...new Map(all.map(x=>[x.id,x])).values()]
-    .filter(x=>x.id&&x.title&&!seenLive('movie','tmdb-'+x.id));
-  unique.sort(()=>Math.random()-0.5);
-  const chosen=unique.slice(0,6);
-  chosen.forEach(x=>markLive('movie','tmdb-'+x.id));
-
-  return chosen.map(x=>({
-    type:'movie',
-    title:x.title,
-    year:(x.release_date||'').slice(0,4),
-    genre,
-    creator:'',
-    summary:x.overview||'No summary available.',
-    poster:tmdbPoster(x.poster_path),
-    rating:Number(x.vote_average||0),
-    tmdbId:x.id,
-    runtime:0
-  }));
-}
-
-async function getLiveTV(genre){
-  const gid=TMDB_GENRES.tv[genre]||18;
-  const recentFrom=new Date();
-  recentFrom.setFullYear(recentFrom.getFullYear()-4);
-  const today=new Date().toISOString().slice(0,10);
-  const from=recentFrom.toISOString().slice(0,10);
-
-  const pages=[1,2,3,4].sort(()=>Math.random()-0.5);
-  const all=[];
-  for(const page of pages){
-    try{
-      const data=await tmdbGet('/discover/tv',{
-        with_genres:gid,
-        'first_air_date.gte':from,
-        'first_air_date.lte':today,
-        sort_by:'popularity.desc',
-        page,
-        'vote_count.gte':20
-      });
-      all.push(...(data.results||[]));
-    }catch(e){console.warn('TMDB TV page failed',page,e);}
-  }
-
-  const unique=[...new Map(all.map(x=>[x.id,x])).values()]
-    .filter(x=>x.id&&x.name&&!seenLive('tv','tmdb-'+x.id));
-  unique.sort(()=>Math.random()-0.5);
-  const chosen=unique.slice(0,6);
-  chosen.forEach(x=>markLive('tv','tmdb-'+x.id));
-
-  return chosen.map(x=>({
-    type:'tv',
-    title:x.name,
-    year:(x.first_air_date||'').slice(0,4),
-    genre,
-    creator:'',
-    summary:x.overview||'No summary available.',
-    poster:tmdbPoster(x.poster_path),
-    rating:Number(x.vote_average||0),
-    tmdbId:x.id
-  }));
-}
-
-async function getLiveShelf(type,genre){
-  const arr=type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
-  if(arr.length)return arr;
-  // If that page had no unseen matches, make another live request.
-  return type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
-}
-function liveShelf(type,genre,arr){
-  const cards=arr.map((x,j)=>{
-    const id='liveCard_'+type+'_'+String(x.tmdbId||x.imdbId||x.id||j).replace(/[^a-zA-Z0-9_-]/g,'');
-    window.__reelLiveCards=window.__reelLiveCards||{};
-    window.__reelLiveCards[id]=x;
-    return `<button class="dvd live-cover" data-live-id="${id}" style="background:${x.poster?`linear-gradient(180deg,transparent 25%,#000d),url('${String(x.poster).replace(/'/g,"%27")}') center/cover`:`${colors[j%colors.length]}`}" onclick="openLiveCard('${id}')"><b>${liveEsc(x.title)}</b><small>${liveEsc(x.year)}${x.rating?' · ★ '+Number(x.rating).toFixed(1):''}</small></button>`;
-  }).join('');
-  return `<div class="shelf"><div class="shelf-head"><h3>${genre}</h3><button class="refresh" onclick="refreshShelf('${type}','${genre}')">↻ Refresh</button></div><div class="dvd-row">${cards}</div></div>`;
-}
-function openLiveCard(id){
-  const x=(window.__reelLiveCards||{})[id];
-  if(x)openCase(x);
-}
-
-async function loadLiveShelves(type){
-  const genres=['Romance','Thriller','Action','Drama','Comedy','Rom Coms','Award Winners'];
-  els.shelfArea.innerHTML='<div class="section"><div class="empty">🎞️ Finding fresh recommendations…</div></div>';
-  const out=[];
-  for(const g of genres){
-    try{
-      const arr=await Promise.race([
-        getLiveShelf(type,g),
-        new Promise((_,reject)=>setTimeout(()=>reject(Error('TIMEOUT')),15000))
-      ]);
-      if(arr&&arr.length)out.push(liveShelf(type,g,arr));
-    }catch(e){console.warn('Discover:',type,g,e);}
-  }
-  if(out.length){
-    els.shelfArea.innerHTML=`<div class="section"><div class="section-head"><h2>${type==='movie'?'🍿 Movie night':'🎬 TV screening room'}</h2><span>Fresh picks</span></div>${out.join('')}</div>`;
-  }else{
-    els.shelfArea.innerHTML='<div class="section"><div class="empty"><b>No recommendations loaded.</b><br><br>Press Refresh to try again.</div></div>';
-  }
-}
-
-function enterShelves(type){loadLiveShelves(type);}
-function shelf(type,genre,i){
- let arr=data[type].filter(x=>x[2]===genre);
- if(!arr.length)arr=data[type].slice(i%data[type].length).concat(data[type]).slice(0,6);
- return `<div class="shelf"><div class="shelf-head"><h3>${genre}</h3><button class="refresh" onclick="refreshShelf('${type}','${genre}')">↻ Refresh</button></div><div class="dvd-row">${arr.map((x,j)=>`<button class="dvd" style="background:${colors[j%colors.length]}" onclick='openCase(${JSON.stringify({type,title:x[0],year:x[1],genre:x[2],creator:x[3],summary:x[4]})})'><b>${x[0]}</b><small>${x[1]}</small></button>`).join('')}</div></div>`;
-}
-async function refreshShelf(type,genre){
- try{
-  const arr=await getLiveShelf(type,genre);
-  const target=[...document.querySelectorAll('.shelf')].find(s=>s.querySelector('h3')?.textContent===genre);
-  if(target)target.outerHTML=liveShelf(type,genre,arr);
-  toast('🎞️ Fresh live picks loaded');
- }catch(e){console.error('Discover refresh failed',e);toast('Could not refresh — check Wi‑Fi');}
-}
-function openCase(x){
-  selected={...x};
-  els.cover.textContent=(x.title||'').toUpperCase();
-  els.cover.style.backgroundImage=x.poster?`linear-gradient(180deg,transparent 25%,#000b),url("${x.poster}")`:'';
-  els.cover.style.backgroundSize='cover';
-  els.cover.style.backgroundPosition='center';
-  els.caseType.textContent=x.type==='movie'?'MOVIE':'TV SERIES';
-  els.caseTitle.textContent=x.title||'Untitled';
-  const meta=[x.year,x.genre,x.rating?'★ '+Number(x.rating).toFixed(1):''].filter(Boolean).join(' · ');
-  els.caseMeta.textContent=meta;
-  els.caseSummary.textContent=x.summary||'No summary available yet.';
-  els.modal.classList.add('show');
-}
-function closeCase(){els.modal.classList.remove('show');}
-function addWatch(){
-  if(!selected)return;
-  const key=selected.type+'|'+selected.title;
-  if(watched.some(x=>x.key===key)){
-    closeCase();toast('✓ Already watched');
-    return;
-  }
-  if(!want.some(x=>x.key===key)){
-    want.push({...selected,key});
-    save();
-    closeCase();
-    toast('❤️ Added to your watchlist');
-  }else{
-    closeCase();toast('✓ Already in your watchlist');
-  }
-}
-function library(type){
- const w=want.filter(x=>x.type===type),d=watched.filter(x=>x.type===type);
- els.libraryArea.innerHTML=`<div class="section"><div class="section-head"><h2>❤️ Want to watch</h2><span>${w.length}</span></div><div class="list">${w.length?w.map(item).join(''):'<div class="empty">Nothing here yet. Add something from Discover.</div>'}</div><div class="section-head" style="margin-top:25px"><h2>✓ Watched</h2><span>${d.length}</span></div><div class="list">${d.length?d.map(item).join(''):'<div class="empty">Complete something from Home and it will appear here.</div>'}</div></div>`;
-}
-function item(x){
- const status=x.type==='tv'&&x.fullyWatched?'Fully watched':'Watched';
- return `<div class="item"><div class="thumb">${x.type==='movie'?'🍿':'🎬'}</div><div><b>${x.title}</b><small>${x.type==='tv'?status:(x.year+' · '+x.genre)}</small></div></div>`;
-}
-
-function finishMovie(){
- counts.movieMonth++;counts.movieYear++;
- renderGoals();
- const key='movie|'+els.movieTitle.textContent;
- want=want.filter(a=>a.key!==key);
- if(!watched.some(a=>a.key===key))watched.push({type:'movie',title:els.movieTitle.textContent,year:'2026',genre:'',key});
- movieProgress=0;
- setMovieProgress(0);
- save();
- popcornBurst();
- toast('🍿 Movie complete — added to Watched');
-}
-function finishEpisode(){
-  const currentEpisode=Math.max(1,Math.min(tvTotalEpisodes,tvEpisode));
-
-  if(currentEpisode < tvTotalEpisodes){
-    tvEpisode=currentEpisode+1;
-    tvCompletedEpisodes=tvEpisode-1;
-    syncTvUI();
-    save();
-
-    els.clack.classList.add('show');
-    setTimeout(()=>els.clack.classList.remove('show'),700);
-    toast(`🎬 Episode ${currentEpisode} complete — now on S${tvSeason} E${tvEpisode}`);
-    return;
-  }
-
-  // Final episode: count the whole series once.
-  const title=els.tvTitle.textContent.trim();
-  const key='tv|'+title;
-
-  if(!watched.some(a=>a.key===key)){
-    counts.tvMonth++;
-    counts.tvYear++;
-    watched.push({
-      type:'tv',
-      title,
-      year:'2026',
-      genre:'',
-      key,
-      fullyWatched:true,
-      episodes:tvTotalEpisodes
     });
   }
 
-  want=want.filter(a=>a.key!==key);
+  function setupSliders() {
+    const mSlider = document.getElementById('movieSliderHit');
+    const tSlider = document.getElementById('tvSliderHit');
 
-  // Reset for a future rewatch.
-  tvEpisode=1;
-  tvCompletedEpisodes=0;
-  syncTvUI();
-  renderGoals();
-  save();
+    mSlider.addEventListener('input', (e) => {
+      const val = Number(e.target.value);
+      document.getElementById('movieBar').style.setProperty('--p', val + '%');
+      document.querySelector('.movie-bucket').style.left = val + '%';
+      
+      const currentSec = Math.round((val / 100) * state.movie.totalSec);
+      state.movie.progressSec = currentSec;
+      document.getElementById('movieTime').textContent = formatSeconds(currentSec);
+    });
 
-  els.clack.classList.add('show');
-  setTimeout(()=>els.clack.classList.remove('show'),1100);
-  toast('🎬 Series complete — added to Watched and counted in your quotas');
-}
-function popcornBurst(){
- els.burst.innerHTML='';
- for(let i=0;i<34;i++){
-   const s=document.createElement('span');
-   s.className='kernel';
-   const p1=document.createElement('i'),p2=document.createElement('i'),p3=document.createElement('i');
-   s.append(p1,p2,p3);
-   s.style.left='50%';s.style.top='55%';
-   s.style.setProperty('--x',(Math.random()*600-300)+'px');
-   s.style.setProperty('--y',(Math.random()*-520+90)+'px');
-   s.style.setProperty('--r',(Math.random()*720-360)+'deg');
-   els.burst.appendChild(s);
- }
- setTimeout(()=>els.burst.innerHTML='',1450);
-}
-function toast(message){
- const t=document.createElement('div');
- t.textContent=message;
- t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:200;background:#fff0d5;color:#351927;padding:11px 16px;border-radius:99px;font-weight:800;font-size:12px;box-shadow:0 8px 20px #0009';
- document.body.appendChild(t);setTimeout(()=>t.remove(),2100);
-}
-setMovieProgress(movieProgress);
-updateMovieBucket();
-syncTvUI();
-els.tvMeta.textContent=`S${tvSeason} E${tvEpisode} of ${tvTotalEpisodes}`;
-const startLabel=document.getElementById('tvProgressStart');
-const endLabel=document.getElementById('tvProgressEnd');
-if(startLabel)startLabel.textContent=`S${tvSeason} E${tvEpisode}`;
-if(endLabel)endLabel.textContent=`S${tvSeason} E${tvTotalEpisodes}`;
-updateTVClapper();
-renderGoals();
+    // Auto-save when user finishes moving the slider
+    mSlider.addEventListener('change', () => {
+      saveState();
+    });
 
+    tSlider.addEventListener('input', (e) => {
+      const val = Number(e.target.value);
+      document.getElementById('tvBar').style.setProperty('--p', val + '%');
+      document.getElementById('tvClapper').style.left = val + '%';
+      
+      const epIndex = Math.max(1, Math.ceil((val / 100) * state.tv.totalEp));
+      state.tv.currentEp = epIndex;
+      document.getElementById('homeTvMeta').textContent = `S${state.tv.season} E${epIndex} of ${state.tv.totalEp}`;
+      document.getElementById('tvProgressStart').textContent = `S${state.tv.season} E${epIndex}`;
+    });
 
+    // Auto-save when user finishes moving the slider
+    tSlider.addEventListener('change', () => {
+      saveState();
+    });
+  }
 
-setTimeout(restoreHome,50);
-</script></body></html>
+  function formatSeconds(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  function renderHome() {
+    // Sync Movie State
+    document.getElementById('homeMovieTitle').textContent = state.movie.title;
+    document.getElementById('homeMovieMeta').textContent = `${state.movie.year} · ${state.movie.runtime}`;
+    document.getElementById('homeMoviePoster').textContent = getPosterAbbr(state.movie.title);
+    
+    const mPct = state.movie.totalSec ? Math.round((state.movie.progressSec / state.movie.totalSec) * 100) : 0;
+    document.getElementById('movieSliderHit').value = mPct;
+    document.getElementById('movieBar').style.setProperty('--p', mPct + '%');
+    document.querySelector('.movie-bucket').style.left = mPct + '%';
+    document.getElementById('movieTime').textContent = formatSeconds(state.movie.progressSec);
+    
+    document.getElementById('movieMonthGoal').textContent = `${state.movie.monthDone} / ${state.movie.monthGoal}`;
+    document.getElementById('movieMonthBar').style.width = Math.min(100, (state.movie.monthDone / state.movie.monthGoal) * 100) + '%';
+    document.getElementById('movieYearGoal').textContent = `${state.movie.yearDone} / ${state.movie.yearGoal}`;
+    document.getElementById('movieYearBar').style.width = Math.min(100, (state.movie.yearDone / state.movie.yearGoal) * 100) + '%';
+
+    // Sync TV State
+    document.getElementById('homeTvTitle').textContent = state.tv.title;
+    document.getElementById('homeTvMeta').textContent = `S${state.tv.season} E${state.tv.currentEp} of ${state.tv.totalEp}`;
+    document.getElementById('homeTvPoster').textContent = getPosterAbbr(state.tv.title);
+    
+    const tPct = state.tv.totalEp ? Math.round((state.tv.currentEp / state.tv.totalEp) * 100) : 0;
+    document.getElementById('tvSliderHit').value = tPct;
+    document.getElementById('tvBar').style.setProperty('--p', tPct + '%');
+    document.getElementById('tvClapper').style.left = tPct + '%';
+    document.getElementById('tvProgressStart').textContent = `S${state.tv.season} E${state.tv.currentEp}`;
+    document.getElementById('tvProgressEnd').textContent = `S${state.tv.season} E${state.tv.totalEp}`;
+
+    document.getElementById('tvMonthGoal').textContent = `${state.tv.monthDone} / ${state.tv.monthGoal}`;
+    document.getElementById('tvMonthBar').style.width = Math.min(100, (state.tv.monthDone / state.tv.monthGoal) * 100) + '%';
+    document.getElementById('tvYearGoal').textContent = `${state.tv.yearDone} / ${state.tv.yearGoal}`;
+    document.getElementById('tvYearBar').style.width = Math.min(100, (state.tv.yearDone / state.tv.yearGoal) * 100) + '%';
+  }
+
+  function getPosterAbbr(title) {
+    if (!title) return 'REEL';
+    const words = title.toUpperCase().trim().split(' ');
+    if (words.length >= 2) return `${words[0].slice(0, 5)}\n${words[1].slice(0, 5)}`;
+    return title.slice(0, 6).toUpperCase();
+  }
+
+  function finishMovie() {
+    state.movie.monthDone++;
+    state.movie.yearDone++;
+    state.movie.progressSec = state.movie.totalSec;
+    state.library.movie.watched.unshift({ title: state.movie.title, year: state.movie.year });
+    saveState();
+    renderHome();
+    triggerPopcornBurst();
+  }
+
+  function finishEpisode() {
+    triggerClapperAnimation();
+    if (state.tv.currentEp < state.tv.totalEp) {
+      state.tv.currentEp++;
+    } else {
+      state.tv.monthDone++;
+      state.tv.yearDone++;
+      state.library.tv.watched.unshift({ title: `${state.tv.title} (S${state.tv.season})`, year: state.tv.year });
+    }
+    saveState();
+    renderHome();
+  }
+
+  function triggerPopcornBurst() {
+    const container = document.getElementById('burstContainer');
+    container.innerHTML = '';
+    for (let i = 0; i < 20; i++) {
+      const kernel = document.createElement('div');
+      kernel.className = 'kernel';
+      kernel.innerHTML = '<i></i><i></i><i></i>';
+      kernel.style.setProperty('--x', (Math.random() - 0.5) * 350 + 'px');
+      kernel.style.setProperty('--y', -(Math.random() * 400 + 100) + 'px');
+      kernel.style.setProperty('--r', (Math.random() - 0.5) * 720 + 'deg');
+      kernel.style.left = '50%';
+      kernel.style.top = '70%';
+      container.appendChild(kernel);
+    }
+    setTimeout(() => { container.innerHTML = ''; }, 1300);
+  }
+
+  function triggerClapperAnimation() {
+    const overlay = document.getElementById('clackOverlay');
+    overlay.classList.add('show');
+    setTimeout(() => overlay.classList.remove('show'), 900);
+  }
+
+  function enterShelves(type) {
+    const container = document.getElementById('shelfArea');
+    const items = discoverData[type] || [];
+    let html = `<div class="shelf"><div class="shelf-head"><h3>${type === 'movie' ? '🍿 Top Movies' : '🎬 Popular Series'}</h3><button class="refresh" onclick="enterShelves('${type}')">↻ Refresh</button></div><div class="dvd-row">`;
+    items.forEach(item => {
+      html += `<button class="dvd" style="background:${type === 'movie' ? 'linear-gradient(145deg,#7f263d,#25101a)' : 'linear-gradient(145deg,#183943,#080d10)'}" onclick='openModal(${JSON.stringify(item)})'><b>${item.title}</b><small>${item.year}</small></button>`;
+    });
+    html += `</div></div>`;
+    container.innerHTML = html;
+  }
+
+  function library(type) {
+    const container = document.getElementById('libraryArea');
+    const list = state.library[type];
+    let html = `<div class="section"><div class="section-head"><h2>Want to Watch</h2></div><div class="list">`;
+    if (list.watchlist.length === 0) {
+      html += `<div class="empty">No items in your watchlist yet.</div>`;
+    } else {
+      list.watchlist.forEach(item => {
+        html += `<div class="item"><div class="thumb">🎞️</div><div><b>${item.title}</b><small>${item.year}</small></div></div>`;
+      });
+    }
+    html += `</div></div><div class="section"><div class="section-head"><h2>Completed</h2></div><div class="list">`;
+    if (list.watched.length === 0) {
+      html += `<div class="empty">Nothing watched yet.</div>`;
+    } else {
+      list.watched.forEach(item => {
+        html += `<div class="item"><div class="thumb">✓</div><div><b>${item.title}</b><small>${item.year}</small></div></div>`;
+      });
+    }
+    html += `</div></div>`;
+    container.innerHTML = html;
+  }
+
+  function openModal(item) {
+    state.activeModalItem = item;
+    document.getElementById('modalTitle').textContent = item.title;
+    document.getElementById('modalMeta').textContent = item.year;
+    document.getElementById('modalDesc').textContent = item.desc || 'No description available.';
+    document.getElementById('modalCover').textContent = getPosterAbbr(item.title);
+    document.getElementById('detailModal').classList.add('show');
+  }
+
+  function closeModal() {
+    document.getElementById('detailModal').classList.remove('show');
+  }
+
+  function modalAction() {
+    if (!state.activeModalItem) return;
+    const type = state.activeModalItem.type;
+    state.library[type].watchlist.unshift({
+      title: state.activeModalItem.title,
+      year: state.activeModalItem.year
+    });
+    saveState();
+    closeModal();
+    if (state.activeTab === 'library') library(type);
+  }
+
+  function openEditor(type) {
+    state.activeEditorType = type;
+    document.getElementById('editorTitle').textContent = type === 'movie' ? 'Edit Movie' : 'Edit TV Series';
+    
+    if (type === 'movie') {
+      document.getElementById('editNameInput').value = state.movie.title;
+      document.getElementById('editYearInput').value = state.movie.year;
+      document.getElementById('editTimeInput').value = state.movie.runtime;
+      document.getElementById('editTimeLabel').style.display = 'block';
+      document.getElementById('editEpisodeLabel').style.display = 'none';
+    } else {
+      document.getElementById('editNameInput').value = state.tv.title;
+      document.getElementById('editYearInput').value = state.tv.year;
+      document.getElementById('editSeasonInput').value = state.tv.season;
+      document.getElementById('editEpisodeInput').value = state.tv.currentEp;
+      document.getElementById('editTotalEpisodesInput').value = state.tv.totalEp;
+      document.getElementById('editTimeLabel').style.display = 'none';
+      document.getElementById('editEpisodeLabel').style.display = 'block';
+    }
+
+    document.getElementById('editMovieMonthQuota').value = state.movie.monthGoal;
+    document.getElementById('editMovieYearQuota').value = state.movie.yearGoal;
+    document.getElementById('editTvMonthQuota').value = state.tv.monthGoal;
+    document.getElementById('editTvYearQuota').value = state.tv.yearGoal;
+    document.getElementById('editMovieMonthCount').value = state.movie.monthDone;
+    document.getElementById('editMovieYearCount').value = state.movie.yearDone;
+    document.getElementById('editTvMonthCount').value = state.tv.monthDone;
+    document.getElementById('editTvYearCount').value = state.tv.yearDone;
+
+    switchEditMode('details');
+    document.getElementById('editorModal').classList.add('show');
+  }
+
+  function closeEditor() {
+    document.getElementById('editorModal').classList.remove('show');
+  }
+
+  function switchEditMode(mode) {
+    state.editMode = mode;
+    document.getElementById('editDetailsTab').classList.toggle('active', mode === 'details');
+    document.getElementById('editGoalsTab').classList.toggle('active', mode === 'goals');
+    document.getElementById('editWatchedTab').classList.toggle('active', mode === 'watched');
+
+    document.getElementById('editDetailsPane').style.display = mode === 'details' ? 'block' : 'none';
+    document.getElementById('editGoalsPane').style.display = mode === 'goals' ? 'block' : 'none';
+    document.getElementById('editWatchedPane').style.display = mode === 'watched' ? 'block' : 'none';
+  }
+
+  function saveEditor() {
+    if (state.activeEditorType === 'movie') {
+      state.movie.title = document.getElementById('editNameInput').value || state.movie.title;
+      state.movie.year = parseInt(document.getElementById('editYearInput').value, 10) || state.movie.year;
+      state.movie.runtime = document.getElementById('editTimeInput').value || state.movie.runtime;
+    } else {
+      state.tv.title = document.getElementById('editNameInput').value || state.tv.title;
+      state.tv.year = parseInt(document.getElementById('editYearInput').value, 10) || state.tv.year;
+      state.tv.season = parseInt(document.getElementById('editSeasonInput').value, 10) || state.tv.season;
+      state.tv.currentEp = parseInt(document.getElementById('editEpisodeInput').value, 10) || state.tv.currentEp;
+      state.tv.totalEp = parseInt(document.getElementById('editTotalEpisodesInput').value, 10) || state.tv.totalEp;
+    }
+    saveState();
+    renderHome();
+    closeEditor();
+  }
+
+  function saveAllQuotas() {
+    state.movie.monthGoal = parseInt(document.getElementById('editMovieMonthQuota').value, 10) || state.movie.monthGoal;
+    state.movie.yearGoal = parseInt(document.getElementById('editMovieYearQuota').value, 10) || state.movie.yearGoal;
+    state.tv.monthGoal = parseInt(document.getElementById('editTvMonthQuota').value, 10) || state.tv.monthGoal;
+    state.tv.yearGoal = parseInt(document.getElementById('editTvYearQuota').value, 10) || state.tv.yearGoal;
+    
+    state.movie.monthDone = parseInt(document.getElementById('editMovieMonthCount').value, 10) || 0;
+    state.movie.yearDone = parseInt(document.getElementById('editMovieYearCount').value, 10) || 0;
+    state.tv.monthDone = parseInt(document.getElementById('editTvMonthCount').value, 10) || 0;
+    state.tv.yearDone = parseInt(document.getElementById('editTvYearCount').value, 10) || 0;
+
+    saveState();
+    renderHome();
+    closeEditor();
+  }
+
+  function addManualWatched() {
+    const title = document.getElementById('addWatchedTitle').value;
+    const type = document.getElementById('addWatchedType').value;
+    const year = parseInt(document.getElementById('addWatchedYear').value, 10) || new Date().getFullYear();
+
+    if (!title) return;
+
+    state.library[type].watched.unshift({ title, year });
+    if (type === 'movie') state.movie.monthDone++;
+    else state.tv.monthDone++;
+
+    saveState();
+    renderHome();
+    closeEditor();
+  }
+
+  function editName() {
+    const name = prompt('Enter your name:', state.userName);
+    if (name) {
+      state.userName = name;
+      document.getElementById('nameSettingText').textContent = name;
+      saveState();
+    }
+  }
+
+  function toggleChildFriendly() {
+    state.childFriendly = !state.childFriendly;
+    applySettings();
+    saveState();
+  }
+
+  function cycleFont() {
+    const fonts = ['modern', 'serif', 'access'];
+    const nextIdx = (fonts.indexOf(state.fontStyle) + 1) % fonts.length;
+    state.fontStyle = fonts[nextIdx];
+    applySettings();
+    saveState();
+  }
+
+  function cycleTheme() {
+    const themes = ['system', 'light', 'dark'];
+    const nextIdx = (themes.indexOf(state.themeStyle) + 1) % themes.length;
+    state.themeStyle = themes[nextIdx];
+    applySettings();
+    saveState();
+  }
+
+  function applySettings() {
+    document.body.classList.remove('font-serif', 'font-modern', 'font-access');
+    document.body.classList.add(`font-${state.fontStyle}`);
+    document.getElementById('fontSettingText').textContent = state.fontStyle.charAt(0).toUpperCase() + state.fontStyle.slice(1);
+
+    document.body.classList.remove('light');
+    if (state.themeStyle === 'light') {
+      document.body.classList.add('light');
+    }
+    document.getElementById('themeSettingText').textContent = state.themeStyle.charAt(0).toUpperCase() + state.themeStyle.slice(1);
+    document.getElementById('nameSettingText').textContent = state.userName;
+    
+    const childBtn = document.getElementById('childSwitch');
+    childBtn.textContent = state.childFriendly ? 'ON' : 'OFF';
+    childBtn.classList.toggle('on', state.childFriendly);
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
