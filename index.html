@@ -1145,7 +1145,7 @@ async function getLiveMovies(genre){
     genre,
     creator:'',
     summary:x.overview||'No summary available.',
-    poster:x.poster_path||'',
+    poster:tmdbPoster(x.poster_path),
     rating:Number(x.vote_average||0),
     tmdbId:x.id,
     runtime:0
