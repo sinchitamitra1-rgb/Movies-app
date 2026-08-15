@@ -1,6 +1,6 @@
 {
-  "name": "Reel",
-  "short_name": "Reel",
+  "name": "Movie icon",
+  "short_name": "Movie icon",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
