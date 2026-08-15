@@ -326,7 +326,7 @@ body{color:#f4ede3}
 
 <section class="view" id="discover">
 <div class="hero"><div class="eyebrow">the screening room</div><h1>What are we watching?</h1><p>Pick a format. </p></div>
-<div class="doors"><button class="door" onclick="enterShelves('movie')"><div class="emoji">🍿</div><b>Movies</b><small>Genres · fresh picks</small></button><button class="door" onclick="enterShelves('tv')"><div class="emoji">🎬</div><b>TV Series</b><small>Genres · fresh picks</small></button></div>
+<div class="doors"><button class="door" onclick="enterShelves('movie')"><div class="emoji">🍿</div><b>Movies</b><small>Fresh picks</small></button><button class="door" onclick="enterShelves('tv')"><div class="emoji">🎬</div><b>TV Series</b><small>Fresh picks</small></button></div>
 <div id="shelfArea"></div>
 </section>
 
@@ -343,8 +343,8 @@ body{color:#f4ede3}
 </div>
 <div class="card live-discover-card">
 <div class="section-head"><h2>Live Discover</h2><span id="liveStatus">No key needed ✓</span></div>
-<p class="live-help">Reel fetches movie recommendations from Apple's iTunes catalog and TV recommendations from TVmaze — both public, no API account, key, or login required.</p>
-<small class="tmdb-credit">Recommendations are fetched live over Wi‑Fi or mobile data when you open a shelf or press Refresh, and each genre loads independently.</small>
+<p class="live-help">Reel uses public movie and TV sources directly. No API account, key or login is required.</p>
+<small class="tmdb-credit">Recommendations are fetched over Wi‑Fi when you open a shelf or press Refresh.</small>
 </div>
 <div class="card"><div class="section-head"><h2>Your goals</h2></div><p style="color:var(--muted);line-height:1.8">Edit monthly and yearly movie or TV series episode goals directly from Home.</p></div>
 </section>
@@ -528,6 +528,84 @@ if(!localStorage.getItem('reelV14Initialized')){
   localStorage.setItem('reelTvCompletedEpisodes','0');
 }
 
+
+/* REEL V42 — persistent current-home state */
+const REEL_STATE_KEY='reelHomeStateV42';
+
+function persistReel(){
+  try{
+    const state={
+      movie:{
+        title:els.movieTitle?.textContent||'',
+        meta:els.movieMeta?.textContent||'',
+        progress:Number(movieProgress)||0,
+        poster:els.moviePoster?.innerHTML||''
+      },
+      tv:{
+        title:els.tvTitle?.textContent||'',
+        meta:els.tvMeta?.textContent||'',
+        season:Number(tvSeason)||1,
+        episode:Number(tvEpisode)||1,
+        totalEpisodes:Number(tvTotalEpisodes)||1,
+        completedEpisodes:Number(tvCompletedEpisodes)||0,
+        poster:els.tvPoster?.innerHTML||''
+      },
+      want:Array.isArray(want)?want:[],
+      watched:Array.isArray(watched)?watched:[],
+      counts:{...counts},
+      goals:{...goals},
+      settings:{...settings}
+    };
+    localStorage.setItem(REEL_STATE_KEY,JSON.stringify(state));
+  }catch(e){
+    console.warn('Reel could not save state',e);
+  }
+}
+
+function restoreReel(){
+  try{
+    const raw=localStorage.getItem(REEL_STATE_KEY);
+    if(!raw)return;
+    const s=JSON.parse(raw);
+
+    if(s.movie){
+      if(s.movie.title)els.movieTitle.textContent=s.movie.title;
+      if(s.movie.meta)els.movieMeta.textContent=s.movie.meta;
+      if(els.moviePoster && s.movie.poster)els.moviePoster.innerHTML=s.movie.poster;
+      movieProgress=Math.max(0,Math.min(100,Number(s.movie.progress)||0));
+    }
+
+    if(s.tv){
+      if(s.tv.title)els.tvTitle.textContent=s.tv.title;
+      if(s.tv.meta)els.tvMeta.textContent=s.tv.meta;
+      if(els.tvPoster && s.tv.poster)els.tvPoster.innerHTML=s.tv.poster;
+      tvSeason=Math.max(1,Number(s.tv.season)||1);
+      tvTotalEpisodes=Math.max(1,Number(s.tv.totalEpisodes)||1);
+      tvEpisode=Math.max(1,Math.min(Number(s.tv.episode)||1,tvTotalEpisodes));
+      tvCompletedEpisodes=Math.max(0,Math.min(Number(s.tv.completedEpisodes)||0,tvTotalEpisodes));
+    }
+
+    if(Array.isArray(s.want))want=s.want;
+    if(Array.isArray(s.watched))watched=s.watched;
+    if(s.counts)Object.assign(counts,s.counts);
+    if(s.goals)Object.assign(goals,s.goals);
+    if(s.settings)Object.assign(settings,s.settings);
+
+    if(typeof setMovieProgress==='function')setMovieProgress(movieProgress);
+    if(typeof syncTvUI==='function')syncTvUI();
+    if(typeof renderGoals==='function')renderGoals();
+    if(typeof applySettings==='function')applySettings();
+  }catch(e){
+    console.warn('Reel could not restore saved state',e);
+  }
+}
+
+window.addEventListener('pagehide',persistReel);
+window.addEventListener('beforeunload',persistReel);
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden')persistReel();
+});
+
 function save(){
  localStorage.setItem('reelWant',JSON.stringify(want));
  localStorage.setItem('reelWatched',JSON.stringify(watched));
@@ -606,7 +684,7 @@ function openEditor(type){
   els.editEpisodeLabel.style.display=isTV?'block':'none';
 
   els.editNameInput.value=isTV?els.tvTitle.textContent:els.movieTitle.textContent;
-  els.editYearInput.value='2026';
+  els.editYearInput.value=(isTV?els.tvMeta.textContent:els.movieMeta.textContent).split('·')[0].trim()||'2026';
 
   if(isTV){
     els.editSeasonInput.value=tvSeason;
@@ -767,51 +845,6 @@ els.tvSliderHit.addEventListener('change',updateTVClapper);
    tries to surface titles that have not appeared before.
 */
 
-/* Persistent app state: survives closing/reopening the PWA. */
-const REEL_PERSIST_KEY='reelPersistentStateV35';
-function reelSnapshot(){
-  return {
-    movieTitle:document.getElementById('movieTitle')?.textContent||'',
-    tvTitle:document.getElementById('tvTitle')?.textContent||'',
-    tvSeason:Number(tvSeason||1), tvEpisode:Number(tvEpisode||1),
-    tvTotalEpisodes:Number(tvTotalEpisodes||1),
-    tvCompletedEpisodes:Number(tvCompletedEpisodes||0),
-    movieProgress:Number(movieProgress||0),
-    want:Array.isArray(want)?want:[],
-    watched:Array.isArray(watched)?watched:[],
-    counts:typeof counts!=='undefined'?counts:null,
-    goals:typeof goals!=='undefined'?goals:null,
-    settings:typeof settings!=='undefined'?settings:null
-  };
-}
-function persistReel(){
-  try{localStorage.setItem(REEL_PERSIST_KEY,JSON.stringify(reelSnapshot()));}catch(e){}
-}
-function restoreReel(){
-  try{
-    const s=JSON.parse(localStorage.getItem(REEL_PERSIST_KEY)||'null'); if(!s)return;
-    if(s.movieTitle&&document.getElementById('movieTitle'))document.getElementById('movieTitle').textContent=s.movieTitle;
-    if(s.tvTitle&&document.getElementById('tvTitle'))document.getElementById('tvTitle').textContent=s.tvTitle;
-    if(Number.isFinite(s.tvSeason))tvSeason=s.tvSeason;
-    if(Number.isFinite(s.tvEpisode))tvEpisode=s.tvEpisode;
-    if(Number.isFinite(s.tvTotalEpisodes))tvTotalEpisodes=Math.max(1,s.tvTotalEpisodes);
-    if(Number.isFinite(s.tvCompletedEpisodes))tvCompletedEpisodes=Math.max(0,s.tvCompletedEpisodes);
-    if(Number.isFinite(s.movieProgress))movieProgress=Math.max(0,Math.min(100,s.movieProgress));
-    if(Array.isArray(s.want))want=s.want;
-    if(Array.isArray(s.watched))watched=s.watched;
-    if(s.counts)counts=s.counts;
-    if(s.goals)goals=s.goals;
-    if(s.settings)settings=s.settings;
-    if(typeof syncTvUI==='function')syncTvUI();
-    if(typeof setMovieProgress==='function')setMovieProgress(movieProgress);
-    if(typeof renderGoals==='function')renderGoals();
-    if(typeof applySettings==='function')applySettings();
-  }catch(e){console.warn('Reel restore failed',e);}
-}
-window.addEventListener('pagehide',persistReel);
-window.addEventListener('beforeunload',persistReel);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persistReel();});
-
 const LIVE_MOVIE_QUERIES=['a','e','i','o','u','the','love','night','man','girl','world','city','dark','life','summer','star','home','last','one','new'];
 const LIVE_TV_PAGES=[0,1,2,3,4,5,6,7,8,9];
 const LIVE_GENRE_WORDS={
@@ -827,139 +860,189 @@ function seenLive(type,id){return JSON.parse(localStorage.getItem('reelLiveSeen_
 function markLive(type,id){const k='reelLiveSeen_'+type,a=JSON.parse(localStorage.getItem(k)||'[]');if(!a.includes(String(id)))a.push(String(id));while(a.length>5000)a.shift();localStorage.setItem(k,JSON.stringify(a));}
 function liveEsc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
-/* ---- MOVIES: Apple's public iTunes Search API, called via JSONP (a
-   <script> tag, not fetch()). This deliberately avoids fetch()/CORS
-   entirely — JSONP works even in stricter sandboxed or CSP-locked
-   environments where a fetch() to a third-party domain would be blocked. */
-function itunesJSONP(term){
+function imdbSuggest(query){
   return new Promise((resolve,reject)=>{
-    const cbName='reelItunes'+Math.random().toString(36).slice(2);
+    const q=String(query).toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,24);
+    const cb='reelImdb'+Math.random().toString(36).slice(2);
     const script=document.createElement('script');
     let done=false;
-    const timer=setTimeout(()=>finish(Error('MOVIE_TIMEOUT')),9000);
+    const timer=setTimeout(()=>finish(Error('MOVIE_TIMEOUT')),10000);
     function finish(err,data){
       if(done)return; done=true; clearTimeout(timer); script.remove();
-      try{delete window[cbName];}catch(_){}
+      try{delete window[cb]}catch(_){}
       err?reject(err):resolve(data);
     }
-    window[cbName]=data=>finish(null,data);
+    window[cb]=data=>finish(null,data);
     script.onerror=()=>finish(Error('MOVIE_SOURCE'));
-    script.src=`https://itunes.apple.com/search?media=movie&entity=movie&limit=50&country=us&term=${encodeURIComponent(term)}&callback=${cbName}`;
+    script.src=`https://v2.sg.media-imdb.com/suggestion/x/${q}.json?callback=${cb}`;
     document.head.appendChild(script);
   });
 }
 
-function fetchWithTimeout(url,opts={},ms=9000){
-  const ctrl=new AbortController();
-  const t=setTimeout(()=>ctrl.abort(),ms);
-  return fetch(url,{...opts,signal:ctrl.signal}).finally(()=>clearTimeout(t));
+
+let liveMovieGenres=null;
+async function api4devs(path){
+  const r=await fetch('https://api4devs.com/api/v1'+path);
+  if(!r.ok)throw Error('MOVIE_SOURCE');
+  return r.json();
+}
+async function getApi4DevsGenres(){
+  if(liveMovieGenres)return liveMovieGenres;
+  const data=await api4devs('/genres');
+  liveMovieGenres=Array.isArray(data)?data:(data.genres||data.results||[]);
+  return liveMovieGenres;
+}
+async function fetchJsonViaJina(url){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),12000);
+  try{
+    const r=await fetch('https://r.jina.ai/'+url,{signal:controller.signal,headers:{Accept:'text/plain'}});
+    if(!r.ok)throw Error('SOURCE_HTTP');
+    const text=await r.text();
+    try{return JSON.parse(text);}catch(_){
+      const first=text.indexOf('{'), last=text.lastIndexOf('}');
+      if(first>=0&&last>first)return JSON.parse(text.slice(first,last+1));
+      throw Error('SOURCE_JSON');
+    }
+  }finally{clearTimeout(timer);}
+}
+
+
+async function cinemetaCatalog(type,catalog,params={}){
+  const qs=new URLSearchParams(params);
+  const url=`https://v3-cinemeta.strem.io/catalog/${type}/${catalog}.json${qs.toString()?'?'+qs.toString():''}`;
+  const r=await fetch(url);
+  if(!r.ok)throw Error('CINEMETA_HTTP');
+  const j=await r.json();
+  return Array.isArray(j.metas)?j.metas:[];
+}
+const CINEMETA_GENRE={
+  Romance:'Romance',Thriller:'Thriller',Action:'Action',Drama:'Drama',
+  Comedy:'Comedy','Rom Coms':'Comedy','Award Winners':'Drama'
+};
+
+
+const TMDB_READ_TOKEN="eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI5YWFiMjY4ZTA2OWEzNWEyNmM1YzhmOTFlYmMwMGU4OSIsIm5iZiI6MTc4Njc3NTg0NS43NTksInN1YiI6IjZhODAwOTI1NmFmMGM3ZDdjMWU4MjUwMCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.sKEmRw0VppqQ0---BSC7XaMatfJl-pqXvbGDdFbpKgw";
+const TMDB_BASE='https://api.themoviedb.org/3';
+const TMDB_IMG='https://image.tmdb.org/t/p/w500';
+
+const TMDB_GENRES={
+  movie:{Romance:10749,Thriller:53,Action:28,Drama:18,Comedy:35,'Rom Coms':10749,'Award Winners':18},
+  tv:{Romance:10749,Thriller:9648,Action:10759,Drama:18,Comedy:35,'Rom Coms':35,'Award Winners':18}
+};
+
+async function tmdbGet(path,params={}){
+  const qs=new URLSearchParams({language:'en-US',include_adult:'false',...params});
+  const r=await fetch(TMDB_BASE+path+'?'+qs.toString(),{
+    headers:{Authorization:'Bearer '+TMDB_READ_TOKEN,accept:'application/json'}
+  });
+  if(!r.ok) throw Error('TMDB '+r.status);
+  return r.json();
+}
+
+function tmdbPoster(path){
+  return path?TMDB_IMG+path:'';
 }
 
 async function getLiveMovies(genre){
-  const words=LIVE_GENRE_WORDS[genre]||[genre.toLowerCase()];
-  const tried=[...words].sort(()=>Math.random()-0.5).slice(0,3);
-  let results=[];
-  let lastErr=null;
-  for(const term of tried){
+  const gid=TMDB_GENRES.movie[genre]||18;
+  const recentFrom=new Date();
+  recentFrom.setFullYear(recentFrom.getFullYear()-4);
+  const today=new Date().toISOString().slice(0,10);
+  const from=recentFrom.toISOString().slice(0,10);
+
+  const pages=[1,2,3].sort(()=>Math.random()-0.5);
+  const all=[];
+  for(const page of pages){
     try{
-      const json=await itunesJSONP(term);
-      console.debug('[Reel] iTunes term="'+term+'" resultCount=',json&&json.resultCount,'results.length=',(json&&json.results||[]).length);
-      results=results.concat((json&&json.results)||[]);
-    }catch(e){lastErr=e;console.warn('[Reel] iTunes JSONP failed for term',term,e);}
+      const data=await tmdbGet('/discover/movie',{
+        with_genres:gid,
+        'primary_release_date.gte':from,
+        'primary_release_date.lte':today,
+        sort_by:'popularity.desc',
+        page,
+        'vote_count.gte':50
+      });
+      all.push(...(data.results||[]));
+    }catch(e){console.warn('TMDB movie page failed',page,e);}
   }
-  if(!results.length){
-    console.warn('[Reel] getLiveMovies: 0 usable results for',genre,'(lastErr:',lastErr,') — the request reached the source but came back empty. This usually means a content blocker, DNS filter, or CSP on this network/device is stripping the response rather than a bug in the app.');
-    throw lastErr||Error('MOVIE_EMPTY');
-  }
-  const seenTitles=new Set();
-  const fresh=results.filter(x=>{
-    if(!x.trackId||!x.trackName)return false;
-    const t=x.trackName.toLowerCase();
-    if(seenTitles.has(t))return false;
-    seenTitles.add(t);
-    return !seenLive('movie',x.trackId);
-  }).sort(()=>Math.random()-0.5).slice(0,6);
-  fresh.forEach(x=>markLive('movie',x.trackId));
-  return fresh.map(x=>({
-    type:'movie',title:x.trackName||'Untitled movie',
-    year:(x.releaseDate||'').slice(0,4),genre,creator:x.artistName||'',
-    summary:x.longDescription||x.shortDescription||'A film recommendation.',
-    poster:(x.artworkUrl100||'').replace('100x100bb','600x600bb'),
-    rating:0,appleId:x.trackId
-  }));
-}
 
-/* ---- TV: TVmaze's public API (no key). Pages fetched in parallel. */
-async function getLiveTV(genre){
-  const pages=Array.from({length:26},(_,i)=>i).sort(()=>Math.random()-0.5).slice(0,6);
-  const settled=await Promise.allSettled(pages.map(p=>fetchWithTimeout(`https://api.tvmaze.com/shows?page=${p}`).then(r=>r.ok?r.json():[])));
-  settled.forEach((s,i)=>{if(s.status==='rejected')console.warn('[Reel] TVmaze page',pages[i],'failed:',s.reason);});
-  const all=settled.filter(s=>s.status==='fulfilled').flatMap(s=>s.value||[]);
-  if(!all.length){
-    console.warn('[Reel] getLiveTV: all page requests for',genre,'returned nothing — likely a content blocker or network filter rather than an app bug.');
-    throw Error('TV_EMPTY');
-  }
-  const words=(LIVE_GENRE_WORDS[genre]||[]).map(v=>v.toLowerCase());
-  const recent=all.filter(x=>{
-    const y=Number((x.premiered||'').slice(0,4));
-    const gs=(x.genres||[]).map(g=>g.toLowerCase());
-    const match=genre==='Award Winners'?Number(x.rating?.average||0)>=8:words.some(w=>gs.some(g=>g.includes(w)));
-    return x.id&&!seenLive('tv',x.id)&&y>=2020&&match;
-  });
-  const fallback=all.filter(x=>x.id&&!seenLive('tv',x.id)&&Number((x.premiered||'').slice(0,4))>=2020);
-  const chosen=[];
-  for(const x of recent.concat(fallback)){
-    if(!chosen.some(y=>y.id===x.id)){chosen.push(x);if(chosen.length===6)break;}
-  }
-  chosen.forEach(x=>markLive('tv',x.id));
+  const unique=[...new Map(all.map(x=>[x.id,x])).values()]
+    .filter(x=>x.id&&x.title&&!seenLive('movie','tmdb-'+x.id));
+  unique.sort(()=>Math.random()-0.5);
+  const chosen=unique.slice(0,6);
+  chosen.forEach(x=>markLive('movie','tmdb-'+x.id));
+
   return chosen.map(x=>({
-    type:'tv',title:x.name,year:(x.premiered||'').slice(0,4),genre,creator:'',
-    summary:(x.summary||'').replace(/<[^>]*>/g,'')||'No summary available.',
-    poster:x.image?.original||x.image?.medium||'',rating:x.rating?.average||0,tvmazeId:x.id
+    type:'movie',
+    title:x.title,
+    year:(x.release_date||'').slice(0,4),
+    genre,
+    creator:'',
+    summary:x.overview||'No summary available.',
+    poster:tmdbPoster(x.poster_path),
+    rating:Number(x.vote_average||0),
+    tmdbId:x.id,
+    runtime:0
   }));
 }
 
-/* ---- Curated local fallback shelf. Used only when the live sources
-   genuinely can't be reached (offline, or a network/device is blocking
-   them) so Discover never shows a bare error. Pulled from the small
-   built-in `data` set, rotated by a local index so Refresh still moves. */
-const fallbackRotation={};
-function localFallbackItems(type,genre){
-  const pool=data[type]||[];
-  let arr=pool.filter(x=>x[2]===genre);
-  if(!arr.length){
-    const i=fallbackRotation[type+genre]||0;
-    arr=pool.slice(i%pool.length).concat(pool).slice(0,6);
-    fallbackRotation[type+genre]=i+2;
+async function getLiveTV(genre){
+  const gid=TMDB_GENRES.tv[genre]||18;
+  const recentFrom=new Date();
+  recentFrom.setFullYear(recentFrom.getFullYear()-4);
+  const today=new Date().toISOString().slice(0,10);
+  const from=recentFrom.toISOString().slice(0,10);
+
+  const pages=[1,2,3,4].sort(()=>Math.random()-0.5);
+  const all=[];
+  for(const page of pages){
+    try{
+      const data=await tmdbGet('/discover/tv',{
+        with_genres:gid,
+        'first_air_date.gte':from,
+        'first_air_date.lte':today,
+        sort_by:'popularity.desc',
+        page,
+        'vote_count.gte':20
+      });
+      all.push(...(data.results||[]));
+    }catch(e){console.warn('TMDB TV page failed',page,e);}
   }
-  return arr.map(x=>({type,title:x[0],year:x[1],genre:x[2],creator:x[3],summary:x[4],poster:'',rating:0}));
+
+  const unique=[...new Map(all.map(x=>[x.id,x])).values()]
+    .filter(x=>x.id&&x.name&&!seenLive('tv','tmdb-'+x.id));
+  unique.sort(()=>Math.random()-0.5);
+  const chosen=unique.slice(0,6);
+  chosen.forEach(x=>markLive('tv','tmdb-'+x.id));
+
+  return chosen.map(x=>({
+    type:'tv',
+    title:x.name,
+    year:(x.first_air_date||'').slice(0,4),
+    genre,
+    creator:'',
+    summary:x.overview||'No summary available.',
+    poster:tmdbPoster(x.poster_path),
+    rating:Number(x.vote_average||0),
+    tmdbId:x.id
+  }));
 }
 
 async function getLiveShelf(type,genre){
-  try{
-    if(typeof navigator!=='undefined'&&navigator.onLine===false)throw Error('OFFLINE');
-    let arr=type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
-    if(arr.length)return{items:arr,live:true};
-    arr=type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
-    if(arr.length)return{items:arr,live:true};
-    localStorage.removeItem('reelLiveSeen_'+type);
-    arr=type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
-    if(arr.length)return{items:arr,live:true};
-    throw Error(type==='movie'?'MOVIE_EMPTY':'TV_EMPTY');
-  }catch(e){
-    console.warn('[Reel] Live shelf unavailable for',type,genre+'; showing curated picks instead.',e);
-    return{items:localFallbackItems(type,genre),live:false};
-  }
+  const arr=type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
+  if(arr.length)return arr;
+  // If that page had no unseen matches, make another live request.
+  return type==='movie'?await getLiveMovies(genre):await getLiveTV(genre);
 }
-function liveShelf(type,genre,arr,isLive){
+function liveShelf(type,genre,arr){
   const cards=arr.map((x,j)=>{
-    const id='liveCard_'+type+'_'+String(x.tmdbId||x.imdbId||x.id||j).replace(/[^a-zA-Z0-9_-]/g,'')+'_'+j;
+    const id='liveCard_'+type+'_'+String(x.tmdbId||x.imdbId||x.id||j).replace(/[^a-zA-Z0-9_-]/g,'');
     window.__reelLiveCards=window.__reelLiveCards||{};
     window.__reelLiveCards[id]=x;
     return `<button class="dvd live-cover" data-live-id="${id}" style="background:${x.poster?`linear-gradient(180deg,transparent 25%,#000d),url('${String(x.poster).replace(/'/g,"%27")}') center/cover`:`${colors[j%colors.length]}`}" onclick="openLiveCard('${id}')"><b>${liveEsc(x.title)}</b><small>${liveEsc(x.year)}${x.rating?' · ★ '+Number(x.rating).toFixed(1):''}</small></button>`;
   }).join('');
-  const badge=isLive?'':' · curated';
-  return `<div class="shelf"><div class="shelf-head"><h3>${genre}${badge}</h3><button class="refresh" onclick="refreshShelf('${type}','${genre}')">↻ Refresh</button></div><div class="dvd-row">${cards}</div></div>`;
+  return `<div class="shelf"><div class="shelf-head"><h3>${genre}</h3><button class="refresh" onclick="refreshShelf('${type}','${genre}')">↻ Refresh</button></div><div class="dvd-row">${cards}</div></div>`;
 }
 function openLiveCard(id){
   const x=(window.__reelLiveCards||{})[id];
@@ -967,20 +1050,23 @@ function openLiveCard(id){
 }
 
 async function loadLiveShelves(type){
- const genres=['Romance','Thriller','Action','Drama','Comedy','Rom Coms','Award Winners'];
- els.shelfArea.innerHTML='<div class="section"><div class="empty">🎞️ Connecting to live recommendations over Wi‑Fi…</div></div>';
- try{
-  // getLiveShelf never throws — it falls back to curated picks internally —
-  // so this only fails on something truly unexpected (e.g. a rendering bug).
-  const results=await Promise.all(genres.map(g=>getLiveShelf(type,g)));
-  const anyLive=results.some(r=>r.live);
-  const out=genres.map((g,i)=>liveShelf(type,g,results[i].items,results[i].live));
-  const note=anyLive?'':'<div class="empty" style="margin-bottom:10px">Live recommendations aren\'t reaching this device right now (a content blocker or network filter may be stripping the response — check your browser console for details). Showing curated picks instead. <button class="refresh" onclick="loadLiveShelves(\''+type+'\')" style="margin-top:8px">↻ Try live again</button></div>';
-  els.shelfArea.innerHTML=`<div class="section"><div class="section-head"><h2>${type==='movie'?'🍿 Movie night':'🎬 TV screening room'}</h2><span onclick="els.shelfArea.innerHTML=''">← formats</span></div>${note}${out.join('')}</div>`;
- }catch(e){
-  console.error('Reel Discover error:',e);
-  els.shelfArea.innerHTML=`<div class="section"><div class="empty"><b>Discover could not load.</b><br><br>Something unexpected happened — check your browser console (F12) for details.<br><br><button class="refresh" onclick="loadLiveShelves('${type}')" style="margin-top:6px">↻ Try again</button></div></div>`;
- }
+  const genres=['Romance','Thriller','Action','Drama','Comedy','Rom Coms','Award Winners'];
+  els.shelfArea.innerHTML='<div class="section"><div class="empty">🎞️ Finding fresh recommendations…</div></div>';
+  const out=[];
+  for(const g of genres){
+    try{
+      const arr=await Promise.race([
+        getLiveShelf(type,g),
+        new Promise((_,reject)=>setTimeout(()=>reject(Error('TIMEOUT')),15000))
+      ]);
+      if(arr&&arr.length)out.push(liveShelf(type,g,arr));
+    }catch(e){console.warn('Discover:',type,g,e);}
+  }
+  if(out.length){
+    els.shelfArea.innerHTML=`<div class="section"><div class="section-head"><h2>${type==='movie'?'🍿 Movie night':'🎬 TV screening room'}</h2><span>Fresh picks</span></div>${out.join('')}</div>`;
+  }else{
+    els.shelfArea.innerHTML='<div class="section"><div class="empty"><b>No recommendations loaded.</b><br><br>Press Refresh to try again.</div></div>';
+  }
 }
 
 function enterShelves(type){loadLiveShelves(type);}
@@ -991,14 +1077,11 @@ function shelf(type,genre,i){
 }
 async function refreshShelf(type,genre){
  try{
-  const result=await getLiveShelf(type,genre);
-  const target=[...document.querySelectorAll('.shelf')].find(s=>s.querySelector('h3')?.textContent.startsWith(genre));
-  if(target)target.outerHTML=liveShelf(type,genre,result.items,result.live);
-  toast(result.live?'🎞️ Fresh live picks loaded':'Showing curated picks (live source unreachable)');
- }catch(e){
-  console.error('Discover refresh failed',e);
-  toast('Could not refresh — check your connection');
- }
+  const arr=await getLiveShelf(type,genre);
+  const target=[...document.querySelectorAll('.shelf')].find(s=>s.querySelector('h3')?.textContent===genre);
+  if(target)target.outerHTML=liveShelf(type,genre,arr);
+  toast('🎞️ Fresh live picks loaded');
+ }catch(e){console.error('Discover refresh failed',e);toast('Could not refresh — check Wi‑Fi');}
 }
 function openCase(x){
   selected={...x};
@@ -1129,5 +1212,7 @@ if(endLabel)endLabel.textContent=`S${tvSeason} E${tvTotalEpisodes}`;
 updateTVClapper();
 renderGoals();
 
-setTimeout(restoreReel,0);
+
+
+setTimeout(restoreReel,50);
 </script></body></html>
